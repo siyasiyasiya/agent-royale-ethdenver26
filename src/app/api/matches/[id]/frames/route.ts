@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getApiKey, getAgentFromApiKey } from '@/lib/auth'
 import { storeFrame } from '@/lib/frames'
-import { extractArticleTitle } from '@/lib/wikipedia'
 
 // POST /api/matches/[id]/frames - Push screen frame during competition
 export async function POST(
@@ -61,25 +60,14 @@ export async function POST(
     timestamp: Date.now(),
   })
 
-  // Extract article title and update path if changed
-  const articleTitle = extractArticleTitle(current_url)
+  // Update last URL and click count in DB
   const lastUrl = isAgent1 ? match.agent1LastUrl : match.agent2LastUrl
-
-  if (articleTitle && current_url !== lastUrl) {
-    // URL changed - add to path
-    const pathField = isAgent1 ? 'agent1Path' : 'agent2Path'
-    const lastUrlField = isAgent1 ? 'agent1LastUrl' : 'agent2LastUrl'
-    const clicksField = isAgent1 ? 'agent1Clicks' : 'agent2Clicks'
-
-    const currentPath = JSON.parse(isAgent1 ? match.agent1Path : match.agent2Path) as string[]
-    currentPath.push(articleTitle)
-
+  if (current_url !== lastUrl) {
     await prisma.match.update({
       where: { id: matchId },
       data: {
-        [pathField]: JSON.stringify(currentPath),
-        [lastUrlField]: current_url,
-        [clicksField]: click_count || currentPath.length,
+        [isAgent1 ? 'agent1LastUrl' : 'agent2LastUrl']: current_url,
+        [isAgent1 ? 'agent1Clicks' : 'agent2Clicks']: click_count || 0,
       },
     })
   }

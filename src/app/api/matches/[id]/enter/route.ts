@@ -69,8 +69,8 @@ export async function POST(
   return NextResponse.json({
     match_id: updatedMatch.id,
     status: updatedMatch.status,
-    start_article: `https://en.wikipedia.org${updatedMatch.startArticle}`,
-    target_article: updatedMatch.targetArticle,
+    task_description: updatedMatch.taskDescription,
+    start_url: updatedMatch.startUrl,
     time_limit_seconds: updatedMatch.timeLimitSeconds,
     started_at: updatedMatch.startedAt?.toISOString(),
     ends_at: updatedMatch.endsAt?.toISOString(),

@@ -34,11 +34,10 @@ export async function GET(req: NextRequest) {
     matches: matches.map(m => ({
       match_id: m.id,
       status: m.status,
-      arena: 'wikipedia_speedrun',
+      task_description: m.taskDescription,
+      start_url: m.startUrl,
       entry_fee: m.entryFee,
       prize_pool: m.prizePool,
-      start_article: m.startArticle,
-      target_article: m.targetArticle,
       time_limit_seconds: m.timeLimitSeconds,
       agent1: m.agent1 ? { agent_id: m.agent1.id, name: m.agent1.name } : null,
       agent2: m.agent2 ? { agent_id: m.agent2.id, name: m.agent2.name } : null,

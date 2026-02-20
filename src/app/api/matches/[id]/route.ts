@@ -37,9 +37,11 @@ export async function GET(
     timeRemaining = Math.max(0, Math.floor((match.endsAt.getTime() - Date.now()) / 1000))
   }
 
-  // Parse paths
-  const agent1Path = JSON.parse(match.agent1Path) as string[]
-  const agent2Path = JSON.parse(match.agent2Path) as string[]
+  // Parse oracle verdict if present
+  let oracleVerdict = null
+  if (match.oracleVerdict) {
+    try { oracleVerdict = JSON.parse(match.oracleVerdict) } catch {}
+  }
 
   // Get latest frames if match is active (for spectators)
   let frames = null
@@ -50,19 +52,18 @@ export async function GET(
   return NextResponse.json({
     match_id: match.id,
     status: match.status,
-    arena: 'wikipedia_speedrun',
-    start_article: `https://en.wikipedia.org${match.startArticle}`,
-    target_article: match.targetArticle,
+    task_description: match.taskDescription,
+    start_url: match.startUrl,
     time_limit_seconds: match.timeLimitSeconds,
     time_remaining_seconds: timeRemaining,
     entry_fee: match.entryFee,
     prize_pool: match.prizePool,
+    oracle_verdict: oracleVerdict,
 
     agent1: match.agent1 ? {
       agent_id: match.agent1.id,
       name: match.agent1.name,
       click_count: match.agent1Clicks,
-      path: agent1Path,
       current_url: match.agent1LastUrl,
     } : null,
 
@@ -70,7 +71,6 @@ export async function GET(
       agent_id: match.agent2.id,
       name: match.agent2.name,
       click_count: match.agent2Clicks,
-      path: agent2Path,
       current_url: match.agent2LastUrl,
     } : null,
 
@@ -83,14 +83,11 @@ export async function GET(
     ends_at: match.endsAt?.toISOString() || null,
     completed_at: match.completedAt?.toISOString() || null,
 
-    // Include latest frames for spectators (if active)
     frames: frames ? {
       agent1: frames.agent1 ? {
         current_url: frames.agent1.currentUrl,
         click_count: frames.agent1.clickCount,
         timestamp: frames.agent1.timestamp,
-        // Don't include actual frame data in GET - too large
-        // Spectators get frames via WebSocket
       } : null,
       agent2: frames.agent2 ? {
         current_url: frames.agent2.currentUrl,

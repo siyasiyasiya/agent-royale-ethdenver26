@@ -13,6 +13,7 @@
     "match": "npx tsx test-agent/run-match.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
     "@hashgraph/sdk": "^2.80.0",
     "@prisma/client": "^6.19.2",
     "axios": "^1.13.5",

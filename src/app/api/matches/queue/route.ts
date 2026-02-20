@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getApiKey, getAgentFromApiKey } from '@/lib/auth'
-import { getRandomStartArticle, TARGET_ARTICLE } from '@/lib/wikipedia'
 import { emitMatchEvent } from '@/lib/frames'
 
 // POST /api/matches/queue - Join matchmaking
@@ -43,22 +42,21 @@ export async function POST(req: NextRequest) {
     }, { status: 400 })
   }
 
-  // Look for a match with an open slot for this agent
-  // agent2Id must be null (slot 2 open), and agent1Id must not be this agent
+  // Look for a waiting match with an open slot for this agent
   const waitingMatch = await prisma.match.findFirst({
     where: {
       status: 'waiting_for_opponent',
       agent2Id: null,
       OR: [
-        { agent1Id: null },           // slot 1 is open (human-created match)
-        { agent1Id: { not: agentId } }, // slot 1 taken by someone else
+        { agent1Id: null },
+        { agent1Id: { not: agentId } },
       ],
     },
-    orderBy: { createdAt: 'asc' }, // First come, first served
+    orderBy: { createdAt: 'asc' },
   })
 
   if (waitingMatch) {
-    // If slot 1 is empty (human-created match), fill it and keep waiting
+    // If slot 1 is empty, fill it and keep waiting
     if (!waitingMatch.agent1Id) {
       await prisma.match.update({
         where: { id: waitingMatch.id },
@@ -68,8 +66,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         match_id: waitingMatch.id,
         status: 'waiting_for_opponent',
-        start_article: `https://en.wikipedia.org${waitingMatch.startArticle}`,
-        target_article: waitingMatch.targetArticle,
+        task_description: waitingMatch.taskDescription,
+        start_url: waitingMatch.startUrl,
         time_limit_seconds: waitingMatch.timeLimitSeconds,
         message: 'Joined as agent 1. Waiting for opponent.',
       })
@@ -98,8 +96,8 @@ export async function POST(req: NextRequest) {
     emitMatchEvent(match.id, 'match_start', {
       agent1: { agent_id: match.agent1!.id, name: match.agent1!.name },
       agent2: { agent_id: match.agent2!.id, name: match.agent2!.name },
-      start_article: `https://en.wikipedia.org${match.startArticle}`,
-      target_article: match.targetArticle,
+      task_description: match.taskDescription,
+      start_url: match.startUrl,
       time_limit_seconds: match.timeLimitSeconds,
       started_at: match.startedAt?.toISOString(),
       ends_at: match.endsAt?.toISOString(),
@@ -109,8 +107,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       match_id: match.id,
       status: match.status,
-      start_article: `https://en.wikipedia.org${match.startArticle}`,
-      target_article: match.targetArticle,
+      task_description: match.taskDescription,
+      start_url: match.startUrl,
       time_limit_seconds: match.timeLimitSeconds,
       started_at: match.startedAt?.toISOString(),
       ends_at: match.endsAt?.toISOString(),
@@ -123,17 +121,25 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  // No waiting match — create a new one with this agent as agent1
-  const startArticle = getRandomStartArticle()
+  // No waiting match — create one, but require task_description
+  const taskDescription = body.task_description?.trim()
+  if (!taskDescription) {
+    return NextResponse.json({
+      error: 'No waiting match found. Provide task_description to create one, or use POST /api/matches/create.',
+    }, { status: 400 })
+  }
+
+  const startUrl = body.start_url?.trim() || ''
+  const timeLimitSeconds = Number(body.time_limit_seconds) || 300
   const entryFee = 1.0
 
   const match = await prisma.match.create({
     data: {
       agent1Id: agentId,
       status: 'waiting_for_opponent',
-      startArticle,
-      targetArticle: TARGET_ARTICLE,
-      timeLimitSeconds: 300,
+      taskDescription,
+      startUrl,
+      timeLimitSeconds,
       entryFee,
       prizePool: entryFee,
     },
@@ -142,8 +148,8 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     match_id: match.id,
     status: match.status,
-    start_article: `https://en.wikipedia.org${match.startArticle}`,
-    target_article: match.targetArticle,
+    task_description: match.taskDescription,
+    start_url: match.startUrl,
     time_limit_seconds: match.timeLimitSeconds,
     entry_fee_paid: entryFee,
     prize_pool: match.prizePool,

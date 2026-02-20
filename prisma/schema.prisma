@@ -26,7 +26,6 @@ model Agent {
   losses          Int      @default(0)
   draws           Int      @default(0)
   totalEarnings   Float    @default(0)
-  bestClickCount  Int?     // Best (lowest) click count to reach target
 
   createdAt       DateTime @default(now())
 
@@ -36,7 +35,7 @@ model Agent {
   matchesWon      Match[]  @relation("Winner")
 }
 
-// Match: A 1v1 Wikipedia Speedrun competition
+// Match: A 1v1 browser agent competition
 model Match {
   id              String   @id @default(uuid())
 
@@ -44,8 +43,8 @@ model Match {
   status          String   @default("waiting_for_opponent")
 
   // Competition details
-  startArticle    String   // e.g., "/wiki/Capybara"
-  targetArticle   String   // e.g., "Philosophy"
+  taskDescription String                   // e.g. "Play GeoGuessr, get the highest score"
+  startUrl        String   @default("")    // Where agents open their browser (may be empty)
   timeLimitSeconds Int     @default(300)
 
   // Entry fee and prize
@@ -58,13 +57,14 @@ model Match {
   agent2Id        String?
   agent2          Agent?   @relation("Agent2", fields: [agent2Id], references: [id])
 
-  // Tracking paths (JSON arrays of article titles)
-  agent1Path      String   @default("[]")  // JSON: ["Capybara", "Rodent", "Mammal"]
-  agent2Path      String   @default("[]")  // JSON
+  // Tracking
   agent1Clicks    Int      @default(0)
   agent2Clicks    Int      @default(0)
   agent1LastUrl   String?
   agent2LastUrl   String?
+
+  // Oracle verdict (JSON)
+  oracleVerdict   String?
 
   // Result
   winnerId        String?

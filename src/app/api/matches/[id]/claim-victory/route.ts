@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getApiKey, getAgentFromApiKey } from '@/lib/auth'
-import { extractArticleTitle } from '@/lib/wikipedia'
 import { getFrame, clearMatchFrames, emitMatchEvent } from '@/lib/frames'
+import { runOracle } from '@/lib/oracle'
 
-// POST /api/matches/[id]/claim-victory - Claim victory
+// POST /api/matches/[id]/claim-victory - Claim victory (triggers LLM oracle judging)
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -23,134 +23,142 @@ export async function POST(
   }
 
   const body = await req.json()
-  const { agent_id, final_url } = body
+  const { agent_id } = body
 
   if (agent_id !== agent.id) {
     return NextResponse.json({ error: 'agent_id does not match API key' }, { status: 403 })
   }
 
-  // Find the match
+  // Atomically transition from active -> judging to prevent double-claim race condition
+  const updated = await prisma.match.updateMany({
+    where: { id: matchId, status: 'active' },
+    data: { status: 'judging' },
+  })
+
+  if (updated.count === 0) {
+    // Either match not found, not active, or already being judged
+    const match = await prisma.match.findUnique({ where: { id: matchId } })
+    if (!match) return NextResponse.json({ error: 'Match not found' }, { status: 404 })
+    if (match.status === 'judging') {
+      return NextResponse.json({ message: 'Oracle is already judging this match. Wait for the result.' }, { status: 202 })
+    }
+    return NextResponse.json({ error: `Match is not active (status: ${match.status})` }, { status: 400 })
+  }
+
+  // Re-fetch with agents included
   const match = await prisma.match.findUnique({
     where: { id: matchId },
-    include: {
-      agent1: true,
-      agent2: true,
-    },
+    include: { agent1: true, agent2: true },
   })
 
   if (!match) {
     return NextResponse.json({ error: 'Match not found' }, { status: 404 })
   }
 
-  if (match.status !== 'active') {
-    return NextResponse.json({ error: 'Match is not active' }, { status: 400 })
-  }
-
   const isAgent1 = match.agent1Id === agent_id
   const isAgent2 = match.agent2Id === agent_id
 
   if (!isAgent1 && !isAgent2) {
+    // Revert judging status if this agent isn't in the match
+    await prisma.match.update({ where: { id: matchId }, data: { status: 'active' } })
     return NextResponse.json({ error: 'You are not in this match' }, { status: 403 })
   }
 
-  // Get the URL to verify (from request or from last frame)
-  let urlToVerify = final_url
-  if (!urlToVerify) {
-    const lastFrame = getFrame(matchId, agent_id)
-    urlToVerify = lastFrame?.currentUrl
-  }
-
-  if (!urlToVerify) {
-    return NextResponse.json({ error: 'No URL to verify. Include final_url or push frames.' }, { status: 400 })
-  }
-
-  // Extract article title from URL
-  const articleTitle = extractArticleTitle(urlToVerify)
-
-  if (!articleTitle) {
-    return NextResponse.json({
-      result: 'rejected',
-      message: 'Could not parse article from URL',
-      url: urlToVerify,
-    }, { status: 400 })
-  }
-
-  // Check if it matches the target (case-insensitive, handle underscores)
-  const normalizedTitle = articleTitle.toLowerCase().replace(/_/g, ' ')
-  const normalizedTarget = match.targetArticle.toLowerCase().replace(/_/g, ' ')
-
-  if (normalizedTitle !== normalizedTarget) {
-    return NextResponse.json({
-      result: 'rejected',
-      verified_article: articleTitle,
-      target_article: match.targetArticle,
-      message: `You are on '${articleTitle}', not the target. Keep going!`,
-    })
-  }
-
-  // Victory confirmed!
-  const clickCount = isAgent1 ? match.agent1Clicks : match.agent2Clicks
-  const agentPath = JSON.parse(isAgent1 ? match.agent1Path : match.agent2Path) as string[]
   const now = new Date()
   const timeElapsed = match.startedAt
     ? Math.floor((now.getTime() - match.startedAt.getTime()) / 1000)
     : 0
 
-  // Update match status
+  // Emit judging event to spectators
+  emitMatchEvent(matchId, 'judging_started', { claiming_agent: agent_id })
+
+  // Get latest frames for both agents
+  const frame1 = match.agent1Id ? getFrame(matchId, match.agent1Id) : null
+  const frame2 = match.agent2Id ? getFrame(matchId, match.agent2Id) : null
+
+  // Run oracle
+  const verdict = await runOracle({
+    taskDescription: match.taskDescription,
+    agent1: {
+      agentId: match.agent1Id ?? '',
+      name: match.agent1?.name ?? 'Agent 1',
+      clickCount: match.agent1Clicks,
+      lastUrl: match.agent1LastUrl,
+      frameBase64: frame1?.frame ?? null,
+    },
+    agent2: {
+      agentId: match.agent2Id ?? '',
+      name: match.agent2?.name ?? 'Agent 2',
+      clickCount: match.agent2Clicks,
+      lastUrl: match.agent2LastUrl,
+      frameBase64: frame2?.frame ?? null,
+    },
+  })
+
+  const winnerId = verdict.winnerId
+  const verdictJson = JSON.stringify(verdict)
+
+  // Update match to complete
   await prisma.match.update({
     where: { id: matchId },
     data: {
       status: 'complete',
-      winnerId: agent_id,
+      winnerId,
+      oracleVerdict: verdictJson,
       completedAt: now,
     },
   })
 
-  // Update winner stats
-  await prisma.agent.update({
-    where: { id: agent_id },
-    data: {
-      wins: { increment: 1 },
-      totalEarnings: { increment: match.prizePool },
-      bestClickCount: agent.bestClickCount === null || clickCount < agent.bestClickCount
-        ? clickCount
-        : agent.bestClickCount,
-    },
-  })
-
-  // Update loser stats
-  const loserId = isAgent1 ? match.agent2Id : match.agent1Id
-  if (loserId) {
+  // Update agent stats
+  if (winnerId) {
+    const loserId = winnerId === match.agent1Id ? match.agent2Id : match.agent1Id
     await prisma.agent.update({
-      where: { id: loserId },
-      data: {
-        losses: { increment: 1 },
-      },
+      where: { id: winnerId },
+      data: { wins: { increment: 1 }, totalEarnings: { increment: match.prizePool } },
     })
+    if (loserId) {
+      await prisma.agent.update({
+        where: { id: loserId },
+        data: { losses: { increment: 1 } },
+      })
+    }
+  } else {
+    // Draw — increment draws for both
+    const ids = [match.agent1Id, match.agent2Id].filter(Boolean) as string[]
+    for (const id of ids) {
+      await prisma.agent.update({ where: { id }, data: { draws: { increment: 1 } } })
+    }
   }
 
-  // Emit match complete event to spectators
+  // Emit match complete to spectators
   emitMatchEvent(matchId, 'match_complete', {
-    winner: {
-      agent_id: agent_id,
-      name: agent.name,
-      click_count: clickCount,
-      path: agentPath,
-    },
+    result: verdict.winner,
+    winner: winnerId ? {
+      agent_id: winnerId,
+      name: winnerId === match.agent1Id ? match.agent1?.name : match.agent2?.name,
+    } : null,
+    oracle_reasoning: verdict.reasoning,
     time_elapsed_seconds: timeElapsed,
     prize_pool: match.prizePool,
   })
 
-  // Clear frames from memory
   clearMatchFrames(matchId)
 
+  // Determine result from this agent's perspective
+  const myResult =
+    winnerId === null ? 'draw'
+    : winnerId === agent_id ? 'victory'
+    : 'defeat'
+
   return NextResponse.json({
-    result: 'victory',
-    verified_article: articleTitle,
-    click_count: clickCount,
-    path: agentPath,
+    result: myResult,
+    oracle_reasoning: verdict.reasoning,
+    click_count: isAgent1 ? match.agent1Clicks : match.agent2Clicks,
     time_elapsed_seconds: timeElapsed,
-    prize_won: match.prizePool,
-    message: `Congratulations! You reached ${match.targetArticle} in ${clickCount} clicks.`,
+    prize_won: myResult === 'victory' ? match.prizePool : 0,
+    message:
+      myResult === 'victory' ? `Congratulations! The oracle ruled in your favor.`
+      : myResult === 'draw' ? 'The oracle declared a draw.'
+      : 'The oracle ruled against you. Better luck next time.',
   })
 }
