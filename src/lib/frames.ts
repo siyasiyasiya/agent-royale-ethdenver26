@@ -12,10 +12,20 @@ export interface FrameData {
 // Key: `${matchId}:${agentId}` -> frame data
 const frameStore = new Map<string, FrameData>()
 
+// In-memory store for full frame history (screen recording)
+// Key: `${matchId}:${agentId}` -> ordered list of all frames
+const frameHistory = new Map<string, FrameData[]>()
+
 // Store frame and emit to socket.io subscribers
 export function storeFrame(matchId: string, agentId: string, data: Omit<FrameData, 'agentId'>) {
   const frameData: FrameData = { ...data, agentId }
   frameStore.set(`${matchId}:${agentId}`, frameData)
+
+  // Append to history for full recording
+  const key = `${matchId}:${agentId}`
+  const history = frameHistory.get(key) || []
+  history.push(frameData)
+  frameHistory.set(key, history)
 
   // Debug: log when emitting thought
   if (data.thought && data.thought.trim()) {
@@ -46,6 +56,11 @@ export function getFrame(matchId: string, agentId: string): FrameData | null {
   return frameStore.get(`${matchId}:${agentId}`) || null
 }
 
+// Get full frame history for an agent (screen recording)
+export function getFrameHistory(matchId: string, agentId: string): FrameData[] {
+  return frameHistory.get(`${matchId}:${agentId}`) || []
+}
+
 // Get all frames for a match
 export function getFramesForMatch(matchId: string, agent1Id: string | null, agent2Id: string | null) {
   return {
@@ -62,5 +77,8 @@ export function clearMatchFrames(matchId: string) {
       keysToDelete.push(key)
     }
   })
-  keysToDelete.forEach(key => frameStore.delete(key))
+  keysToDelete.forEach(key => {
+    frameStore.delete(key)
+    frameHistory.delete(key)
+  })
 }

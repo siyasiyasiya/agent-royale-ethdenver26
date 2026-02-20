@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getApiKey, getAgentFromApiKey } from '@/lib/auth'
-import { getFrame, clearMatchFrames, emitMatchEvent } from '@/lib/frames'
+import { getFrame, getFrameHistory, clearMatchFrames, emitMatchEvent } from '@/lib/frames'
 import { runOracle } from '@/lib/oracle'
 import { getContract, INFT_CONTRACT_ADDRESS } from '@/lib/contract'
 
@@ -112,9 +112,11 @@ export async function POST(
 
   emitMatchEvent(matchId, 'judging_started', { claiming_agent: agent_id })
 
-  // Get latest frames for both agents
+  // Get latest frames and full frame history (screen recording) for both agents
   const frame1 = match.agent1Id ? getFrame(matchId, match.agent1Id) : null
   const frame2 = match.agent2Id ? getFrame(matchId, match.agent2Id) : null
+  const frames1 = match.agent1Id ? getFrameHistory(matchId, match.agent1Id) : []
+  const frames2 = match.agent2Id ? getFrameHistory(matchId, match.agent2Id) : []
 
   const verdict = await runOracle({
     taskDescription: match.taskDescription,
@@ -124,12 +126,14 @@ export async function POST(
       name: match.agent1?.name ?? 'Agent 1',
       clickCount: match.agent1Clicks,
       lastUrl: frame1?.currentUrl ?? match.agent1LastUrl,
+      frames: frames1,
     },
     agent2: {
       agentId: match.agent2Id,
       name: match.agent2?.name ?? 'Agent 2',
       clickCount: match.agent2Clicks,
       lastUrl: frame2?.currentUrl ?? match.agent2LastUrl,
+      frames: frames2,
     },
   })
 
