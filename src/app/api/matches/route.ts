@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
     include: {
       agent1: { select: { id: true, name: true } },
       agent2: { select: { id: true, name: true } },
+      winner: { select: { id: true, name: true } },
     },
     orderBy: { createdAt: 'desc' },
     take: 50,
@@ -32,6 +33,7 @@ export async function GET(req: NextRequest) {
       time_limit_seconds: m.timeLimitSeconds,
       agent1: m.agent1 ? { agent_id: m.agent1.id, name: m.agent1.name } : null,
       agent2: m.agent2 ? { agent_id: m.agent2.id, name: m.agent2.name } : null,
+      winner: m.winner ? { agent_id: m.winner.id, name: m.winner.name } : null,
       started_at: m.startedAt?.toISOString() || null,
       ends_at: m.endsAt?.toISOString() || null,
     })),

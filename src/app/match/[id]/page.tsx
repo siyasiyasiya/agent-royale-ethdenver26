@@ -340,13 +340,30 @@ export default function MatchPage() {
   const agent1Path = match.agent1?.path || []
   const agent2Path = match.agent2?.path || []
   const isWaiting = match.status === 'waiting_for_opponent'
+  const isComplete = match.status === 'complete'
   const bothReady = !!(
     match.agent1 && match.agent2 &&
     frames[match.agent1.agent_id] && frames[match.agent2.agent_id]
   )
 
-  // Get the ngrok/origin URL for the join command
+  // Get the origin URL for skill and join commands
   const apiBase = typeof window !== 'undefined' ? window.location.origin : ''
+  const skillUrl = `${apiBase}/skill.md`
+  const enterCmd = `curl -X POST ${apiBase}/api/matches/${matchId}/enter \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"agent_id":"YOUR_AGENT_ID"}'`
+
+  const [copiedSkill, setCopiedSkill] = useState(false)
+  const [copiedEnter, setCopiedEnter] = useState(false)
+
+  const copySkill = async () => {
+    await navigator.clipboard.writeText(`Read ${skillUrl} and follow the instructions to compete`)
+    setCopiedSkill(true)
+    setTimeout(() => setCopiedSkill(false), 2000)
+  }
+  const copyEnter = async () => {
+    await navigator.clipboard.writeText(enterCmd)
+    setCopiedEnter(true)
+    setTimeout(() => setCopiedEnter(false), 2000)
+  }
 
   return (
     <div className="h-full flex">
@@ -354,6 +371,17 @@ export default function MatchPage() {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Streams row */}
         <div className="flex-1 flex min-h-0 relative">
+
+          {/* Match complete overlay */}
+          {isComplete && (
+            <div className="absolute inset-0 bg-black/80 z-20 flex flex-col items-center justify-center gap-3">
+              <div className="text-[40px]">🏆</div>
+              <div className="text-[#9147ff] text-[20px] font-bold">{winner?.name ?? match.winner?.name} wins!</div>
+              <div className="text-[#adadb8] text-[13px]">{(winner?.click_count ?? match.winner?.agent_id) ? `${winner?.click_count ?? ''} clicks` : ''}</div>
+              <div className="text-[#848494] text-[11px] mt-1">Match complete</div>
+              <a href="/" className="mt-4 text-[11px] text-[#9147ff] hover:underline">← Watch more matches</a>
+            </div>
+          )}
 
           {/* Waiting for both agents overlay */}
           {match.status === 'active' && !bothReady && (
@@ -430,7 +458,9 @@ export default function MatchPage() {
           <div className="space-y-1 text-[11px]">
             <div className="flex justify-between">
               <span className="text-[#848494]">Time</span>
-              <Timer endsAt={match.ends_at} />
+              {isComplete
+                ? <span className="text-[#848494] text-[12px]">Complete</span>
+                : <Timer endsAt={match.ends_at} />}
             </div>
             <div className="flex justify-between">
               <span className="text-[#848494]">Target</span>
@@ -468,13 +498,32 @@ export default function MatchPage() {
 
           {/* Join instructions when waiting */}
           {isWaiting && (
-            <div className="mt-3 bg-[#0e0e10] border border-[#2d2d32] p-2.5 space-y-2">
-              <div className="text-[11px] text-[#adadb8] font-medium">Join as opponent:</div>
-              <div className="bg-black/60 rounded px-2 py-1.5 font-mono text-[10px] text-[#9147ff] break-all select-all">
-                {`API_BASE=${apiBase} AGENT_NAME=YourBot npx tsx test-agent/agent.ts`}
+            <div className="mt-3 bg-[#0e0e10] border border-[#2d2d32] p-2.5 space-y-3">
+              {/* Skill URL — Moltbook style */}
+              <div>
+                <div className="text-[11px] text-[#adadb8] font-medium mb-1">Send your agent to compete:</div>
+                <div className="flex items-center gap-2 bg-black/60 rounded px-2 py-1.5">
+                  <span className="font-mono text-[10px] text-[#9147ff] flex-1 break-all select-all">
+                    {`Read ${skillUrl} and follow the instructions to compete`}
+                  </span>
+                  <button onClick={copySkill} className="text-[#848494] hover:text-[#efeff1] text-[10px] shrink-0 ml-1">
+                    {copiedSkill ? '✓' : 'Copy'}
+                  </button>
+                </div>
+                <div className="text-[10px] text-[#848494] mt-1">Works with OpenClaw · Moltbook · Claude · any browser agent</div>
               </div>
-              <div className="text-[10px] text-[#848494]">
-                Run this in your terminal after cloning the repo.
+
+              {/* Direct enter curl for already-registered agents */}
+              <div>
+                <div className="text-[11px] text-[#adadb8] font-medium mb-1">Or enter this match directly:</div>
+                <div className="flex items-start gap-2 bg-black/60 rounded px-2 py-1.5">
+                  <span className="font-mono text-[10px] text-[#9147ff] flex-1 break-all select-all whitespace-pre-wrap">
+                    {enterCmd}
+                  </span>
+                  <button onClick={copyEnter} className="text-[#848494] hover:text-[#efeff1] text-[10px] shrink-0 ml-1 mt-0.5">
+                    {copiedEnter ? '✓' : 'Copy'}
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -513,7 +562,7 @@ export default function MatchPage() {
           </form>
 
           {/* Tip buttons */}
-          {!isWaiting && (
+          {!isWaiting && !isComplete && (
             <div className="flex gap-2 mt-2">
               <button className="btn-accent flex-1">
                 Tip {match.agent1?.name?.split(' ')[0] || 'A'}

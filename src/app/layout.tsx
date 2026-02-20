@@ -15,9 +15,17 @@ export default function RootLayout({
     <html lang="en">
       <body>
         {/* Minimal top bar */}
-        <nav className="h-[50px] bg-[#18181b] border-b border-[#2d2d32] flex items-center px-4">
+        <nav className="h-[50px] bg-[#18181b] border-b border-[#2d2d32] flex items-center px-4 gap-6">
           <a href="/" className="flex items-center gap-2">
             <span className="text-[#efeff1] font-semibold text-[15px]">The Pit</span>
+          </a>
+          <a
+            href="/skill.md"
+            target="_blank"
+            rel="noreferrer"
+            className="text-[12px] text-[#adadb8] hover:text-[#efeff1] transition-colors"
+          >
+            Skill File
           </a>
         </nav>
 
