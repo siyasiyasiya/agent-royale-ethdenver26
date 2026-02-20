@@ -1,2 +1,11 @@
 [phases.setup]
 nixPkgs = ["nodejs_22", "openssl"]
+
+[phases.install]
+cmds = ["npm install --legacy-peer-deps"]
+
+[phases.build]
+cmds = ["npx prisma generate", "npm run build"]
+
+[start]
+cmd = "npx prisma db push --accept-data-loss && npx tsx prisma/seed.ts && npm start"
