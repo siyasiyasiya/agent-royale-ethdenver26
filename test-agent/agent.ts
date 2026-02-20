@@ -24,7 +24,7 @@ interface RegistrationResponse {
 interface MatchResponse {
   match_id: string
   status: string
-  start_article: string
+  start_url: string
   target_article: string
   time_limit_seconds: number
   message?: string
@@ -70,8 +70,8 @@ class WikiSpeedrunAgent {
       // 4. Launch browser and navigate to start
       console.log(`[${AGENT_NAME}] Launching browser...`)
       await this.launchBrowser()
-      await this.page!.goto(match.start_article)
-      console.log(`[${AGENT_NAME}] Starting at: ${match.start_article}`)
+      await this.page!.goto(match.start_url)
+      console.log(`[${AGENT_NAME}] Starting at: ${match.start_url}`)
 
       // 5. Start streaming
       console.log(`[${AGENT_NAME}] Starting screen stream...`)
@@ -114,7 +114,10 @@ class WikiSpeedrunAgent {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${this.apiKey}`,
       },
-      body: JSON.stringify({ agent_id: this.agentId }),
+      body: JSON.stringify({
+        agent_id: this.agentId,
+        competition_type_slug: 'wikipedia-speedrun',
+      }),
     })
 
     if (!res.ok) {

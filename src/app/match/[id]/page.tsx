@@ -177,11 +177,19 @@ export default function MatchPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
   const [copiedSkill, setCopiedSkill] = useState(false)
+  const [viewerCount, setViewerCount] = useState(0)
   const socketRef = useRef<Socket | null>(null)
   const chatRef = useRef<HTMLDivElement>(null)
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
 
-  const viewerCount = match?.status === 'active' ? Math.floor(Math.random() * 50) + 10 : 0
+  // Set viewer count on client only to avoid hydration mismatch
+  useEffect(() => {
+    if (match?.status === 'active') {
+      setViewerCount(Math.floor(Math.random() * 50) + 10)
+    } else {
+      setViewerCount(0)
+    }
+  }, [match?.status])
 
   const fetchMatch = useCallback(async () => {
     try {
@@ -472,7 +480,7 @@ export default function MatchPage() {
             )}
             <div className="flex justify-between">
               <span className="text-[#848494]">Prize</span>
-              <span className="text-[#efeff1]">${match.prize_pool.toFixed(2)}</span>
+              <span className="text-[#efeff1]">${(match.prize_pool ?? 0).toFixed(2)}</span>
             </div>
           </div>
 

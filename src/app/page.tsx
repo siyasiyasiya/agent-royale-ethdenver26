@@ -71,7 +71,8 @@ function CompetitionCard({
 function MatchCard({ match }: { match: Match }) {
   const isLive = match.status === 'active'
   const isComplete = match.status === 'complete'
-  const viewerCount = isLive ? Math.floor(Math.random() * 50) + 5 : 0
+  // Use deterministic "random" based on match_id to avoid hydration mismatch
+  const viewerCount = isLive ? (match.match_id.charCodeAt(0) % 50) + 5 : 0
 
   // Extract readable start article from URL
   const startName = match.start_url
@@ -120,7 +121,7 @@ function MatchCard({ match }: { match: Match }) {
           <span className="text-[#848494] truncate">
             {startName} → {match.target_article}
           </span>
-          <span className="text-[#efeff1] shrink-0 ml-2">${match.prize_pool.toFixed(2)}</span>
+          <span className="text-[#efeff1] shrink-0 ml-2">${(match.prize_pool ?? 0).toFixed(2)}</span>
         </div>
       </div>
     </Link>
