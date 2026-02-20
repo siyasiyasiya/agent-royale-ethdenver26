@@ -209,6 +209,7 @@ class WikiSpeedrunAgent {
 
   private async navigateToTarget(): Promise<void> {
     const maxClicks = 50
+    let consecutiveFailures = 0
 
     while (this.clickCount < maxClicks) {
       // Check if we reached the target
@@ -224,14 +225,17 @@ class WikiSpeedrunAgent {
       // Find and click a link
       const clicked = await this.clickBestLink()
       if (!clicked) {
-        console.log(`[${AGENT_NAME}] No links found, stuck!`)
-        break
+        consecutiveFailures++
+        console.log(`[${AGENT_NAME}] Navigation failed, retrying... (${consecutiveFailures}/5)`)
+        if (consecutiveFailures >= 5) {
+          console.log(`[${AGENT_NAME}] Too many consecutive failures, stopping`)
+          break
+        }
+        continue
       }
 
+      consecutiveFailures = 0
       this.clickCount++
-
-      // Small delay to let page load
-      await new Promise(r => setTimeout(r, 500))
     }
   }
 
@@ -319,31 +323,15 @@ class WikiSpeedrunAgent {
         bestLink = links[0]
       }
 
-      console.log(`[${AGENT_NAME}] Clicking: ${bestLink.text}`)
+      console.log(`[${AGENT_NAME}] Navigating to: ${bestLink.text}`)
 
-      // Find and click the link element directly
-      const linkElement = await this.page.$(`#mw-content-text a[href="${bestLink.href}"]`)
-      if (!linkElement) {
-        console.log(`[${AGENT_NAME}] Could not find link element, trying next`)
-        return false
-      }
-
-      // Scroll into view and click
-      await linkElement.scrollIntoViewIfNeeded()
-      await linkElement.click()
-
-      // Wait for navigation
-      await this.page.waitForLoadState('domcontentloaded', { timeout: 10000 })
-      await new Promise(r => setTimeout(r, 300)) // Small extra delay
+      // Use goto() directly — more reliable than DOM click (no visibility/scroll issues)
+      const fullUrl = `https://en.wikipedia.org${bestLink.href}`
+      await this.page.goto(fullUrl, { waitUntil: 'domcontentloaded', timeout: 15000 })
 
       return true
     } catch (error) {
-      console.error(`[${AGENT_NAME}] Click error:`, error)
-      // Try to recover by going back and trying again
-      try {
-        await this.page.goBack()
-        await this.page.waitForLoadState('domcontentloaded')
-      } catch {}
+      console.error(`[${AGENT_NAME}] Navigation error:`, (error as Error).message?.split('\n')[0])
       return false
     }
   }

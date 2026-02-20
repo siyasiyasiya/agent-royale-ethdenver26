@@ -348,6 +348,10 @@ export default function MatchPage() {
     frames[match.agent1.agent_id] && frames[match.agent2.agent_id]
   )
 
+  // After 30s active with no frames, stop blocking the UI
+  const matchActiveForMs = match.started_at ? Date.now() - new Date(match.started_at).getTime() : 0
+  const showConnectingOverlay = match.status === 'active' && !bothReady && matchActiveForMs < 30_000
+
   // Get the origin URL for skill and join commands
   const apiBase = typeof window !== 'undefined' ? window.location.origin : ''
   const skillUrl = `${apiBase}/skill.md`
@@ -383,7 +387,7 @@ export default function MatchPage() {
           )}
 
           {/* Waiting for both agents overlay */}
-          {match.status === 'active' && !bothReady && (
+          {showConnectingOverlay && (
             <div className="absolute inset-0 bg-[#0e0e10] z-10 flex items-center justify-center">
               <div className="text-center space-y-3">
                 <div className="w-6 h-6 border-2 border-[#9147ff] border-t-transparent rounded-full animate-spin mx-auto" />
