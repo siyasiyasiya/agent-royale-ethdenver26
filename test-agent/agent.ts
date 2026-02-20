@@ -48,9 +48,6 @@ class WikiSpeedrunAgent {
       await this.register()
       console.log(`[${AGENT_NAME}] Registered as ${this.agentId}`)
 
-      // Small delay to ensure DB commit
-      await new Promise(r => setTimeout(r, 500))
-
       // 2. Join queue
       console.log(`[${AGENT_NAME}] Joining matchmaking queue...`)
       const match = await this.joinQueue()
@@ -123,11 +120,8 @@ class WikiSpeedrunAgent {
   }
 
   private async waitForMatchStart(): Promise<void> {
-    // Poll until match is active (with timeout)
-    const maxWait = 60 // 60 seconds max
-    let waited = 0
-
-    while (waited < maxWait) {
+    // Poll until match is active
+    while (true) {
       const res = await fetch(`${API_BASE}/api/matches/${this.matchId}`, {
         headers: { 'Authorization': `Bearer ${this.apiKey}` },
       })
@@ -138,12 +132,8 @@ class WikiSpeedrunAgent {
         return
       }
 
-      console.log(`[${AGENT_NAME}] Still waiting... (${waited}s)`)
-      await new Promise(r => setTimeout(r, 2000))
-      waited += 2
+      await new Promise(r => setTimeout(r, 1000))
     }
-
-    throw new Error('Timeout waiting for opponent')
   }
 
   private async launchBrowser(): Promise<void> {
@@ -254,42 +244,24 @@ class WikiSpeedrunAgent {
     if (!this.page) return false
 
     try {
-      // Wait for content to be ready
-      await this.page.waitForSelector('#mw-content-text', { timeout: 5000 })
-
-      // Get all links in the article content (filter out bad links)
+      // Get all links in the article content
       const links = await this.page.$$eval(
-        '#mw-content-text p a[href^="/wiki/"]:not([href*=":"]):not([href*="#"])',
+        '#mw-content-text a[href^="/wiki/"]:not([href*=":"]):not([href*="#"])',
         (elements) => {
           return elements
             .map((el) => ({
               href: el.getAttribute('href') || '',
               text: el.textContent?.trim() || '',
             }))
-            .filter((l) => {
-              // Must have reasonable length
-              if (l.text.length < 3 || l.text.length > 50) return false
-              // No single letters or numbers
-              if (/^[a-zA-Z0-9]$/.test(l.text)) return false
-              // No disambiguation pages
-              if (l.href.includes('disambiguation') || l.href.includes('_(disambiguation)')) return false
-              // No "Main article" type links
-              if (l.text.toLowerCase().includes('main article')) return false
-              // No citation/reference links
-              if (/^\[\d+\]$/.test(l.text)) return false
-              // No edit links
-              if (l.text.toLowerCase() === 'edit') return false
-              return true
-            })
+            .filter((l) => l.text.length > 0 && l.text.length < 50)
+            .slice(0, 20) // Limit to first 20 links
         }
       )
 
-      if (links.length === 0) {
-        console.log(`[${AGENT_NAME}] No valid links found on page`)
-        return false
-      }
+      if (links.length === 0) return false
 
       // Simple strategy: pick a link that might lead toward the target
+      // In a real agent, this would use LLM reasoning
       const targetLower = this.targetArticle.toLowerCase()
 
       // Prefer links that contain words from the target
@@ -298,15 +270,14 @@ class WikiSpeedrunAgent {
         l.text.toLowerCase().includes(targetLower)
       )
 
-      // Otherwise pick a random link from the first 10 good ones
+      // Otherwise pick a "good" looking link (longer, not a date/number)
       if (!bestLink) {
         const goodLinks = links.filter(l =>
           l.text.length > 3 &&
           !/^\d+$/.test(l.text) &&
           !l.text.match(/^(January|February|March|April|May|June|July|August|September|October|November|December)/)
         )
-        const pool = goodLinks.length > 0 ? goodLinks.slice(0, 10) : links.slice(0, 10)
-        bestLink = pool[Math.floor(Math.random() * pool.length)]
+        bestLink = goodLinks[Math.floor(Math.random() * Math.min(5, goodLinks.length))]
       }
 
       if (!bestLink) {
@@ -315,29 +286,13 @@ class WikiSpeedrunAgent {
 
       console.log(`[${AGENT_NAME}] Clicking: ${bestLink.text}`)
 
-      // Find and click the link element directly
-      const linkElement = await this.page.$(`#mw-content-text a[href="${bestLink.href}"]`)
-      if (!linkElement) {
-        console.log(`[${AGENT_NAME}] Could not find link element, trying next`)
-        return false
-      }
-
-      // Scroll into view and click
-      await linkElement.scrollIntoViewIfNeeded()
-      await linkElement.click()
-
-      // Wait for navigation
-      await this.page.waitForLoadState('domcontentloaded', { timeout: 10000 })
-      await new Promise(r => setTimeout(r, 300)) // Small extra delay
+      // Click the link
+      await this.page.click(`#mw-content-text a[href="${bestLink.href}"]`)
+      await this.page.waitForLoadState('domcontentloaded')
 
       return true
     } catch (error) {
       console.error(`[${AGENT_NAME}] Click error:`, error)
-      // Try to recover by going back and trying again
-      try {
-        await this.page.goBack()
-        await this.page.waitForLoadState('domcontentloaded')
-      } catch {}
       return false
     }
   }

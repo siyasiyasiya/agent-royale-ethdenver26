@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getApiKey, getAgentFromApiKey } from '@/lib/auth'
-import { getRandomStartArticle, TARGET_ARTICLE } from '@/lib/wikipedia'
+import { getRandomMatchArticles } from '@/lib/wikipedia'
 import { emitMatchEvent } from '@/lib/frames'
 
 // POST /api/matches/queue - Join matchmaking
@@ -25,12 +25,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'agent_id does not match API key' }, { status: 403 })
   }
 
-  // Check if agent is already in an active/waiting match
+  // Check if agent is already in an active/waiting/ready_check match
   const existingMatch = await prisma.match.findFirst({
     where: {
       OR: [
-        { agent1Id: agentId, status: { in: ['waiting_for_opponent', 'active'] } },
-        { agent2Id: agentId, status: { in: ['waiting_for_opponent', 'active'] } },
+        { agent1Id: agentId, status: { in: ['waiting_for_opponent', 'ready_check', 'active'] } },
+        { agent2Id: agentId, status: { in: ['waiting_for_opponent', 'ready_check', 'active'] } },
       ],
     },
   })
@@ -53,18 +53,15 @@ export async function POST(req: NextRequest) {
   })
 
   if (waitingMatch) {
-    // Join as agent2 and start the match
-    const now = new Date()
-    const endsAt = new Date(now.getTime() + waitingMatch.timeLimitSeconds * 1000)
-
+    // Join as agent2 - move to ready_check status (NOT active yet)
+    // Timer only starts when both agents signal ready
     const match = await prisma.match.update({
       where: { id: waitingMatch.id },
       data: {
         agent2Id: agentId,
-        status: 'active',
+        status: 'ready_check',
         prizePool: waitingMatch.entryFee * 2,
-        startedAt: now,
-        endsAt: endsAt,
+        // startedAt and endsAt are NOT set yet - wait for both agents to be ready
       },
       include: {
         agent1: { select: { id: true, name: true } },
@@ -72,15 +69,13 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // Emit match_start event to spectators
-    emitMatchEvent(match.id, 'match_start', {
+    // Emit match_paired event - both agents should prepare and signal ready
+    emitMatchEvent(match.id, 'match_paired', {
       agent1: { agent_id: match.agent1.id, name: match.agent1.name },
       agent2: { agent_id: match.agent2!.id, name: match.agent2!.name },
       start_article: `https://en.wikipedia.org${match.startArticle}`,
       target_article: match.targetArticle,
       time_limit_seconds: match.timeLimitSeconds,
-      started_at: match.startedAt?.toISOString(),
-      ends_at: match.endsAt?.toISOString(),
       prize_pool: match.prizePool,
     })
 
@@ -90,27 +85,26 @@ export async function POST(req: NextRequest) {
       start_article: `https://en.wikipedia.org${match.startArticle}`,
       target_article: match.targetArticle,
       time_limit_seconds: match.timeLimitSeconds,
-      started_at: match.startedAt?.toISOString(),
-      ends_at: match.endsAt?.toISOString(),
       opponent: {
         agent_id: match.agent1.id,
         name: match.agent1.name,
       },
       entry_fee_paid: match.entryFee,
       prize_pool: match.prizePool,
+      message: 'Paired with opponent. Call /api/matches/{id}/ready when ready to start.',
     })
   }
 
-  // No waiting match found - create a new one
-  const startArticle = getRandomStartArticle()
+  // No waiting match found - create a new one with random articles
+  const { startPath, targetTitle } = await getRandomMatchArticles()
   const entryFee = 1.0 // Default entry fee
 
   const match = await prisma.match.create({
     data: {
       agent1Id: agentId,
       status: 'waiting_for_opponent',
-      startArticle: startArticle,
-      targetArticle: TARGET_ARTICLE,
+      startArticle: startPath,
+      targetArticle: targetTitle,
       timeLimitSeconds: 300, // 5 minutes
       entryFee: entryFee,
       prizePool: entryFee, // Just agent1's fee for now

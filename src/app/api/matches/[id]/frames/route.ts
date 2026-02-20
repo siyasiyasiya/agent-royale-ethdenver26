@@ -23,7 +23,7 @@ export async function POST(
   }
 
   const body = await req.json()
-  const { agent_id, frame, current_url, click_count } = body
+  const { agent_id, frame, current_url, click_count, thought } = body
 
   if (agent_id !== agent.id) {
     return NextResponse.json({ error: 'agent_id does not match API key' }, { status: 403 })
@@ -46,6 +46,11 @@ export async function POST(
     return NextResponse.json({ error: 'Match is not active' }, { status: 400 })
   }
 
+  // Check for timeout
+  if (match.endsAt && new Date() > match.endsAt) {
+    return NextResponse.json({ error: 'Match has timed out' }, { status: 400 })
+  }
+
   const isAgent1 = match.agent1Id === agent_id
   const isAgent2 = match.agent2Id === agent_id
 
@@ -59,6 +64,7 @@ export async function POST(
     currentUrl: current_url,
     clickCount: click_count || 0,
     timestamp: Date.now(),
+    thought: thought || '',
   })
 
   // Extract article title and update path if changed

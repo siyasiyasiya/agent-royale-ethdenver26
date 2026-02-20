@@ -1,27 +1,49 @@
-// Random Wikipedia starting articles (good variety, not too obscure)
-const STARTING_ARTICLES = [
-  '/wiki/Capybara',
-  '/wiki/Pizza',
-  '/wiki/Solar_System',
-  '/wiki/Mount_Everest',
-  '/wiki/Leonardo_da_Vinci',
-  '/wiki/Olympic_Games',
-  '/wiki/Bitcoin',
-  '/wiki/Dinosaur',
-  '/wiki/Coffee',
-  '/wiki/Jazz',
-  '/wiki/Amazon_rainforest',
-  '/wiki/Albert_Einstein',
-  '/wiki/Chocolate',
-  '/wiki/Moon',
-  '/wiki/Video_game',
-]
+// Fetch a random Wikipedia article using the API
+export async function getRandomArticle(): Promise<{ path: string; title: string }> {
+  try {
+    const res = await fetch(
+      'https://en.wikipedia.org/api/rest_v1/page/random/summary'
+    )
+    const data = await res.json()
+    return {
+      path: `/wiki/${data.title.replace(/ /g, '_')}`,
+      title: data.title,
+    }
+  } catch (error) {
+    // Fallback to a default if API fails
+    return {
+      path: '/wiki/Philosophy',
+      title: 'Philosophy',
+    }
+  }
+}
 
-// Target is always Philosophy (classic Wikipedia game)
+// Get random start and target articles (ensuring they're different)
+export async function getRandomMatchArticles(): Promise<{
+  startPath: string
+  startTitle: string
+  targetTitle: string
+}> {
+  const start = await getRandomArticle()
+  let target = await getRandomArticle()
+
+  // Make sure they're different
+  while (target.title === start.title) {
+    target = await getRandomArticle()
+  }
+
+  return {
+    startPath: start.path,
+    startTitle: start.title,
+    targetTitle: target.title,
+  }
+}
+
+// For backwards compatibility
 export const TARGET_ARTICLE = 'Philosophy'
 
 export function getRandomStartArticle(): string {
-  return STARTING_ARTICLES[Math.floor(Math.random() * STARTING_ARTICLES.length)]
+  return '/wiki/Capybara' // Fallback, use getRandomMatchArticles instead
 }
 
 export function extractArticleTitle(url: string): string | null {
