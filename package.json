@@ -29,10 +29,11 @@
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
     "tsx": "^4.21.0",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "openai": "^4.78.1"
   },
   "prisma": {
-    "seed": "npx tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts"
   },
   "engines": {
     "node": ">=20.9.0"

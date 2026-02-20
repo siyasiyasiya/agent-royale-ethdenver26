@@ -40,14 +40,23 @@ export async function POST(req: NextRequest) {
   }
 
   // Validate competition type
-  const competitionType = await prisma.competitionType.findUnique({
+  const competitionType = await prisma.competitionType.findFirst({
     where: { slug: competitionTypeSlug, active: true },
   })
   if (!competitionType) {
-    return NextResponse.json({ error: `Competition type "${competitionTypeSlug}" not found` }, { status: 404 })
+    return NextResponse.json({ error: `Competition type "${competitionTypeSlug}" not found` }, { status: 400 })
   }
 
-  const prompts: Prompt[] = JSON.parse(competitionType.prompts)
+  let prompts: Prompt[] = []
+  try {
+    prompts = JSON.parse(competitionType.prompts) as Prompt[]
+  } catch {
+    return NextResponse.json({ error: 'Competition type prompts are invalid' }, { status: 500 })
+  }
+
+  if (prompts.length === 0) {
+    return NextResponse.json({ error: 'Competition type has no prompts configured' }, { status: 500 })
+  }
 
   // Check if agent is already in an active/waiting match
   const existingMatch = await prisma.match.findFirst({
