@@ -110,18 +110,62 @@ async function get0GClient() {
   return { client, model }
 }
 
-export async function runOracle(input: OracleInput): Promise<OracleVerdict> {
-  if (!process.env.ZERO_GRAVITY_PRIVATE_KEY) {
-    console.error('[oracle] ZERO_GRAVITY_PRIVATE_KEY not set — declaring draw')
-    return {
-      winner: 'draw',
-      winnerId: null,
-      reasoning: 'Oracle unavailable (no 0G key configured). Match declared a draw.',
+// Simple URL-based verification (fallback when 0G unavailable)
+function simpleUrlVerdict(input: OracleInput): OracleVerdict {
+  const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+  const target = normalize(input.targetArticle)
+
+  const url1 = input.agent1.lastUrl ?? ''
+  const url2 = input.agent2.lastUrl ?? ''
+
+  // Extract article name from URL
+  const getArticle = (url: string) => {
+    const match = url.match(/\/wiki\/([^#?]+)/)
+    return match ? normalize(decodeURIComponent(match[1])) : ''
+  }
+
+  const article1 = getArticle(url1)
+  const article2 = getArticle(url2)
+
+  const agent1Reached = article1 === target
+  const agent2Reached = article2 === target
+
+  if (agent1Reached && agent2Reached) {
+    // Both reached - fewer clicks wins
+    if (input.agent1.clickCount < input.agent2.clickCount) {
+      return { winner: 'agent1', winnerId: input.agent1.agentId, reasoning: `Both reached ${input.targetArticle}. ${input.agent1.name} wins with fewer clicks (${input.agent1.clickCount} vs ${input.agent2.clickCount}).` }
+    } else if (input.agent2.clickCount < input.agent1.clickCount) {
+      return { winner: 'agent2', winnerId: input.agent2.agentId, reasoning: `Both reached ${input.targetArticle}. ${input.agent2.name} wins with fewer clicks (${input.agent2.clickCount} vs ${input.agent1.clickCount}).` }
+    } else {
+      return { winner: 'draw', winnerId: null, reasoning: `Both reached ${input.targetArticle} with the same number of clicks. Draw.` }
     }
+  } else if (agent1Reached) {
+    return { winner: 'agent1', winnerId: input.agent1.agentId, reasoning: `${input.agent1.name} reached ${input.targetArticle} in ${input.agent1.clickCount} clicks. ${input.agent2.name} did not reach the target.` }
+  } else if (agent2Reached) {
+    return { winner: 'agent2', winnerId: input.agent2.agentId, reasoning: `${input.agent2.name} reached ${input.targetArticle} in ${input.agent2.clickCount} clicks. ${input.agent1.name} did not reach the target.` }
+  } else {
+    return { winner: 'draw', winnerId: null, reasoning: `Neither agent reached ${input.targetArticle}. Draw.` }
+  }
+}
+
+export async function runOracle(input: OracleInput): Promise<OracleVerdict> {
+  // First try simple URL verification - fast and reliable
+  const simpleVerdict = simpleUrlVerdict(input)
+
+  // If we have a clear winner from URL matching, use it
+  if (simpleVerdict.winner !== 'draw') {
+    console.log('[oracle] Simple URL verdict:', simpleVerdict)
+    return simpleVerdict
+  }
+
+  // If no clear winner, try 0G compute for smarter judgment
+  if (!process.env.ZERO_GRAVITY_PRIVATE_KEY) {
+    console.log('[oracle] No 0G key, using simple verdict')
+    return simpleVerdict
   }
 
   try {
-    console.log('[oracle] Connecting to 0G compute...')
+    console.log('[oracle] Connecting to 0G compute for edge case...')
     const { client, model } = await get0GClient()
 
     const response = await client.chat.completions.create({
@@ -138,10 +182,7 @@ export async function runOracle(input: OracleInput): Promise<OracleVerdict> {
     return parseVerdict(text, input)
   } catch (err) {
     console.error('[oracle] 0G compute failed:', err)
-    return {
-      winner: 'draw',
-      winnerId: null,
-      reasoning: 'Oracle failed to produce a verdict. Match declared a draw.',
-    }
+    // Fall back to simple verdict
+    return simpleVerdict
   }
 }
