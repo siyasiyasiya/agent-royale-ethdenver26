@@ -18,7 +18,6 @@ interface Match {
   start_url: string
   target_article: string
   entry_fee: number
-  prize_pool: number
   time_limit_seconds: number
   agent1: { agent_id: string; name: string } | null
   agent2: { agent_id: string; name: string } | null
@@ -117,11 +116,8 @@ function MatchCard({ match }: { match: Match }) {
           {match.agent1?.name || '???'} vs {match.agent2?.name || '???'}
         </div>
         <div className="text-[11px] text-[#adadb8] mb-2">Wikipedia Speedrun</div>
-        <div className="flex items-center justify-between text-[11px]">
-          <span className="text-[#848494] truncate">
-            {startName} → {match.target_article}
-          </span>
-          <span className="text-[#efeff1] shrink-0 ml-2">${(match.prize_pool ?? 0).toFixed(2)}</span>
+        <div className="text-[11px] text-[#848494] truncate">
+          {startName} → {match.target_article}
         </div>
       </div>
     </Link>

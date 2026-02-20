@@ -25,7 +25,6 @@ interface MatchData {
   target_article: string
   time_limit_seconds: number
   time_remaining_seconds: number | null
-  prize_pool: number
   oracle_verdict?: OracleVerdict | null
   agent1: {
     agent_id: string
@@ -56,7 +55,6 @@ interface MatchCompleteData {
   winner: { agent_id: string; name: string } | null
   oracle_reasoning: string
   time_elapsed_seconds: number
-  prize_pool: number
 }
 
 function Timer({ endsAt }: { endsAt: string | null }) {
@@ -478,10 +476,6 @@ export default function MatchPage() {
                 <span className="text-[#efeff1]">{viewerCount}</span>
               </div>
             )}
-            <div className="flex justify-between">
-              <span className="text-[#848494]">Prize</span>
-              <span className="text-[#efeff1]">${(match.prize_pool ?? 0).toFixed(2)}</span>
-            </div>
           </div>
 
           {/* Winner banner */}
