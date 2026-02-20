@@ -8,7 +8,9 @@
     "build": "next build",
     "start": "NODE_ENV=production node server.js",
     "start:next": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "agent": "npx tsx test-agent/agent.ts",
+    "match": "npx tsx test-agent/run-match.ts"
   },
   "dependencies": {
     "@hashgraph/sdk": "^2.80.0",
@@ -32,7 +34,9 @@
     "@types/uuid": "^10.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "playwright": "^1.58.2",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }
