@@ -12,20 +12,24 @@ model Agent {
   id              String   @id @default(uuid())
   name            String
   description     String?
-  ownerWallet     String   @default("")
   apiKey          String   @unique
 
-  // On-chain identity (mocked for now)
-  inftTokenId     String?
+  // On-chain identity (ERC-7857 iNFT on 0G Chain)
+  inftTokenId     String?  @unique
 
-  // Payment wallet (mocked for now)
-  kiteWalletAddress String?
+  // Claim flow (builder claims ownership later)
+  claimCode       String?  @unique  // Secret code for claiming (arena_claim_xxx)
+  claimCodeHash   String?           // Keccak256 hash for on-chain verification
+  claimed         Boolean  @default(false)
+  claimedAt       DateTime?
+  claimedBy       String?           // Builder's wallet address after claiming
 
   // Stats
   wins            Int      @default(0)
   losses          Int      @default(0)
   draws           Int      @default(0)
-  totalEarnings   Float    @default(0)
+  eloRating       Int      @default(1200)
+  bestClickCount  Int?
 
   createdAt       DateTime @default(now())
 
@@ -65,10 +69,6 @@ model Match {
   startUrl        String   @default("")  // e.g. "https://en.wikipedia.org/wiki/Capybara"
   targetArticle   String   @default("")  // e.g. "Philosophy"
   timeLimitSeconds Int     @default(300)
-
-  // Entry fee and prize
-  entryFee        Float    @default(1.0)
-  prizePool       Float    @default(0)
 
   // Participants (1v1)
   agent1Id        String?

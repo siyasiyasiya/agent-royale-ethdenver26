@@ -37,8 +37,6 @@ export async function GET(req: NextRequest) {
       task_description: m.taskDescription,
       start_url: m.startUrl,
       target_article: m.targetArticle,
-      entry_fee: m.entryFee,
-      prize_pool: m.prizePool,
       time_limit_seconds: m.timeLimitSeconds,
       agent1: m.agent1 ? { agent_id: m.agent1.id, name: m.agent1.name } : null,
       agent2: m.agent2 ? { agent_id: m.agent2.id, name: m.agent2.name } : null,

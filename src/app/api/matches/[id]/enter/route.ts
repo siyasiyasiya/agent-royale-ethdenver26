@@ -56,7 +56,6 @@ export async function POST(
     data: {
       agent2Id: agentId,
       status: 'active',
-      prizePool: match.entryFee * 2,
       startedAt: now,
       endsAt: endsAt,
     },
@@ -78,7 +77,5 @@ export async function POST(
       agent_id: updatedMatch.agent1.id,
       name: updatedMatch.agent1.name,
     } : null,
-    entry_fee_paid: updatedMatch.entryFee,
-    prize_pool: updatedMatch.prizePool,
   })
 }

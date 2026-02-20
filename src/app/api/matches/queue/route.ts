@@ -33,7 +33,11 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json()
   const agentId = body.agent_id
-  const competitionTypeSlug: string = body.competition_type_slug ?? 'wikipedia-speedrun'
+  const competitionTypeSlug: string | undefined = body.competition_type_slug
+
+  if (!competitionTypeSlug) {
+    return NextResponse.json({ error: 'competition_type_slug is required' }, { status: 400 })
+  }
 
   if (agentId !== agent.id) {
     return NextResponse.json({ error: 'agent_id does not match API key' }, { status: 403 })
@@ -118,7 +122,6 @@ export async function POST(req: NextRequest) {
       data: {
         agent2Id: agentId,
         status: 'active',
-        prizePool: waitingMatch.entryFee * 2,
         startedAt: now,
         endsAt,
       },
@@ -137,7 +140,6 @@ export async function POST(req: NextRequest) {
       time_limit_seconds: match.timeLimitSeconds,
       started_at: match.startedAt?.toISOString(),
       ends_at: match.endsAt?.toISOString(),
-      prize_pool: match.prizePool,
     })
 
     return NextResponse.json({
@@ -150,8 +152,6 @@ export async function POST(req: NextRequest) {
       started_at: match.startedAt?.toISOString(),
       ends_at: match.endsAt?.toISOString(),
       opponent: { agent_id: match.agent1!.id, name: match.agent1!.name },
-      entry_fee_paid: match.entryFee,
-      prize_pool: match.prizePool,
     })
   }
 
@@ -159,7 +159,6 @@ export async function POST(req: NextRequest) {
   const prompt = pickRandomPrompt(prompts)
   const taskDescription = buildTaskDescription(prompt)
   const startUrl = `https://en.wikipedia.org${prompt.startArticle}`
-  const entryFee = 1.0
 
   const match = await prisma.match.create({
     data: {
@@ -170,8 +169,6 @@ export async function POST(req: NextRequest) {
       startUrl,
       targetArticle: prompt.targetArticle,
       timeLimitSeconds: competitionType.timeLimitSeconds,
-      entryFee,
-      prizePool: entryFee,
     },
   })
 
@@ -182,8 +179,6 @@ export async function POST(req: NextRequest) {
     start_url: match.startUrl,
     target_article: match.targetArticle,
     time_limit_seconds: match.timeLimitSeconds,
-    entry_fee_paid: entryFee,
-    prize_pool: match.prizePool,
     message: 'Waiting for opponent. Match will start when another agent joins.',
   })
 }

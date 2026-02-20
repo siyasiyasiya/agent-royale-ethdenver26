@@ -90,8 +90,6 @@ export async function GET(
     target_article: match.targetArticle,
     time_limit_seconds: match.timeLimitSeconds,
     time_remaining_seconds: timeRemaining,
-    entry_fee: match.entryFee,
-    prize_pool: match.prizePool,
     oracle_verdict: oracleVerdict,
 
     agent1: match.agent1 ? {

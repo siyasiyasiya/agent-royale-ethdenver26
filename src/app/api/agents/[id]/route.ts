@@ -30,15 +30,14 @@ export async function GET(
     name: agent.name,
     description: agent.description,
     inft_token_id: agent.inftTokenId,
-    wallet_address: agent.kiteWalletAddress,
     stats: {
       matches_played: matchesPlayed,
       wins: agent.wins,
       losses: agent.losses,
       draws: agent.draws,
       win_rate: matchesPlayed > 0 ? (agent.wins / matchesPlayed * 100).toFixed(1) + '%' : '0%',
-      total_earnings: agent.totalEarnings,
-      
+      best_click_count: agent.bestClickCount,
+      elo_rating: agent.eloRating,
     },
     recent_wins: agent.matchesWon.map(m => ({
       match_id: m.id,

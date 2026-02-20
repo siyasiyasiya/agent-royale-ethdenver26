@@ -3,6 +3,50 @@ import { prisma } from '@/lib/db'
 import { getApiKey, getAgentFromApiKey } from '@/lib/auth'
 import { getFrame, clearMatchFrames, emitMatchEvent } from '@/lib/frames'
 import { runOracle } from '@/lib/oracle'
+import { getContract, INFT_CONTRACT_ADDRESS } from '@/lib/contract'
+
+// Simple Elo calculation
+function calculateNewElo(winnerElo: number, loserElo: number): { winnerNew: number; loserNew: number } {
+  const K = 32 // K-factor
+  const expectedWinner = 1 / (1 + Math.pow(10, (loserElo - winnerElo) / 400))
+  const expectedLoser = 1 / (1 + Math.pow(10, (winnerElo - loserElo) / 400))
+
+  const winnerNew = Math.round(winnerElo + K * (1 - expectedWinner))
+  const loserNew = Math.round(loserElo + K * (0 - expectedLoser))
+
+  return { winnerNew, loserNew: Math.max(loserNew, 100) } // Min Elo of 100
+}
+
+// Update agent stats on-chain (non-blocking)
+async function updateOnChainStats(agent: {
+  inftTokenId: string | null
+  wins: number
+  losses: number
+  draws: number
+  bestClickCount: number | null
+  eloRating: number
+}) {
+  if (!INFT_CONTRACT_ADDRESS || !agent.inftTokenId) {
+    return
+  }
+
+  try {
+    const contract = getContract()
+    const tx = await contract.updateStats(
+      BigInt(agent.inftTokenId),
+      BigInt(agent.wins),
+      BigInt(agent.losses),
+      BigInt(agent.draws),
+      BigInt(agent.bestClickCount || 0),
+      BigInt(agent.eloRating)
+    )
+    await tx.wait()
+    console.log(`[Victory] Updated on-chain stats for iNFT #${agent.inftTokenId}`)
+  } catch (error) {
+    console.error(`[Victory] Failed to update on-chain stats:`, error)
+    // Non-blocking - continue even if on-chain update fails
+  }
+}
 
 // POST /api/matches/[id]/claim-victory - Triggers 0G oracle judging
 export async function POST(
@@ -68,8 +112,9 @@ export async function POST(
 
   emitMatchEvent(matchId, 'judging_started', { claiming_agent: agent_id })
 
-  const frame1 = getFrame(matchId, match.agent1Id)
-  const frame2 = getFrame(matchId, match.agent2Id)
+  // Get latest frames for both agents
+  const frame1 = match.agent1Id ? getFrame(matchId, match.agent1Id) : null
+  const frame2 = match.agent2Id ? getFrame(matchId, match.agent2Id) : null
 
   const verdict = await runOracle({
     taskDescription: match.taskDescription,
@@ -104,32 +149,67 @@ export async function POST(
     },
   })
 
+  // Calculate Elo changes
+  const winner = winnerId === match.agent1Id ? match.agent1 : match.agent2
+  const loser = winnerId === match.agent1Id ? match.agent2 : match.agent1
+  const winnerOldElo = winner?.eloRating || 1200
+  const loserOldElo = loser?.eloRating || 1200
+  const { winnerNew, loserNew } = calculateNewElo(winnerOldElo, loserOldElo)
+
+  // Update agent stats
+  let updatedWinner = null
+  let updatedLoser = null
+
   if (winnerId) {
     const loserId = winnerId === match.agent1Id ? match.agent2Id : match.agent1Id
-    await prisma.agent.update({
+    const winnerClickCount = winnerId === match.agent1Id ? match.agent1Clicks : match.agent2Clicks
+
+    updatedWinner = await prisma.agent.update({
       where: { id: winnerId },
-      data: { wins: { increment: 1 }, totalEarnings: { increment: match.prizePool } },
+      data: {
+        wins: { increment: 1 },
+        eloRating: winnerNew,
+        bestClickCount: winner?.bestClickCount === null || winnerClickCount < (winner?.bestClickCount ?? Infinity)
+          ? winnerClickCount
+          : winner?.bestClickCount,
+      },
     })
+
     if (loserId) {
-      await prisma.agent.update({ where: { id: loserId }, data: { losses: { increment: 1 } } })
+      updatedLoser = await prisma.agent.update({
+        where: { id: loserId },
+        data: {
+          losses: { increment: 1 },
+          eloRating: loserNew,
+        }
+      })
     }
   } else {
-    for (const participantId of [match.agent1Id, match.agent2Id]) {
-      await prisma.agent.update({ where: { id: participantId }, data: { draws: { increment: 1 } } })
+    // Draw
+    const ids = [match.agent1Id, match.agent2Id].filter(Boolean) as string[]
+    for (const id of ids) {
+      await prisma.agent.update({ where: { id }, data: { draws: { increment: 1 } } })
     }
   }
 
+  // Update on-chain stats (non-blocking)
+  if (updatedWinner) {
+    updateOnChainStats(updatedWinner)
+  }
+  if (updatedLoser) {
+    updateOnChainStats(updatedLoser)
+  }
+
+  // Emit match complete to spectators
   emitMatchEvent(matchId, 'match_complete', {
     result: verdict.winner,
-    winner: winnerId
-      ? {
-        agent_id: winnerId,
-        name: winnerId === match.agent1Id ? match.agent1?.name : match.agent2?.name,
-      }
-      : null,
+    winner: winnerId ? {
+      agent_id: winnerId,
+      name: winnerId === match.agent1Id ? match.agent1?.name : match.agent2?.name,
+      new_elo: winnerNew,
+    } : null,
     oracle_reasoning: verdict.reasoning,
     time_elapsed_seconds: timeElapsed,
-    prize_pool: match.prizePool,
   })
 
   clearMatchFrames(matchId)
@@ -141,7 +221,7 @@ export async function POST(
     oracle_reasoning: verdict.reasoning,
     click_count: isAgent1 ? match.agent1Clicks : match.agent2Clicks,
     time_elapsed_seconds: timeElapsed,
-    prize_won: myResult === 'victory' ? match.prizePool : 0,
+    new_elo: myResult === 'victory' ? winnerNew : (myResult === 'defeat' ? loserNew : undefined),
     message:
       myResult === 'victory'
         ? 'Congratulations! The oracle ruled in your favor.'
