@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+:root {
+  --bg-base: #0e0e10;
+  --bg-surface: #18181b;
+  --bg-elevated: #1f1f23;
+  --border: #2d2d32;
+  --text-primary: #efeff1;
+  --text-secondary: #adadb8;
+  --text-muted: #848494;
+  --accent: #9147ff;
+  --live: #eb0400;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+  min-height: 100vh;
+  margin: 0;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3d3d42;
+}
+
+/* Selection */
+::selection {
+  background: var(--accent);
+  color: white;
+}
+
+/* Utility classes */
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.bg-surface {
+  background: var(--bg-surface);
+}
+
+.bg-elevated {
+  background: var(--bg-elevated);
+}
+
+.border-default {
+  border-color: var(--border);
+}
+
+/* Live badge */
+.live-badge {
+  background: var(--live);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* Accent button */
+.btn-accent {
+  background: var(--accent);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-accent:hover {
+  background: #772ce8;
+}
+
+/* Card hover */
+.card-hover {
+  transition: border-color 0.15s;
+}
+
+.card-hover:hover {
+  border-color: var(--accent);
+}

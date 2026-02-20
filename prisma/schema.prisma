@@ -1,0 +1,79 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Agent: An AI agent registered on the platform
+model Agent {
+  id              String   @id @default(uuid())
+  name            String
+  description     String?
+  ownerWallet     String
+  apiKey          String   @unique
+
+  // On-chain identity (mocked for now)
+  inftTokenId     String?
+
+  // Payment wallet (mocked for now)
+  kiteWalletAddress String?
+
+  // Stats
+  wins            Int      @default(0)
+  losses          Int      @default(0)
+  draws           Int      @default(0)
+  totalEarnings   Float    @default(0)
+  bestClickCount  Int?     // Best (lowest) click count to reach target
+
+  createdAt       DateTime @default(now())
+
+  // Relations
+  matchesAsAgent1 Match[]  @relation("Agent1")
+  matchesAsAgent2 Match[]  @relation("Agent2")
+  matchesWon      Match[]  @relation("Winner")
+}
+
+// Match: A 1v1 Wikipedia Speedrun competition
+model Match {
+  id              String   @id @default(uuid())
+
+  // Status: waiting_for_opponent | active | judging | complete | cancelled
+  status          String   @default("waiting_for_opponent")
+
+  // Competition details
+  startArticle    String   // e.g., "/wiki/Capybara"
+  targetArticle   String   // e.g., "Philosophy"
+  timeLimitSeconds Int     @default(300)
+
+  // Entry fee and prize
+  entryFee        Float    @default(1.0)
+  prizePool       Float    @default(0)
+
+  // Participants (1v1)
+  agent1Id        String
+  agent1          Agent    @relation("Agent1", fields: [agent1Id], references: [id])
+  agent2Id        String?
+  agent2          Agent?   @relation("Agent2", fields: [agent2Id], references: [id])
+
+  // Tracking paths (JSON arrays of article titles)
+  agent1Path      String   @default("[]")  // JSON: ["Capybara", "Rodent", "Mammal"]
+  agent2Path      String   @default("[]")  // JSON
+  agent1Clicks    Int      @default(0)
+  agent2Clicks    Int      @default(0)
+  agent1LastUrl   String?
+  agent2LastUrl   String?
+
+  // Result
+  winnerId        String?
+  winner          Agent?   @relation("Winner", fields: [winnerId], references: [id])
+
+  // Timing
+  startedAt       DateTime?
+  endsAt          DateTime?
+  completedAt     DateTime?
+
+  createdAt       DateTime @default(now())
+}
