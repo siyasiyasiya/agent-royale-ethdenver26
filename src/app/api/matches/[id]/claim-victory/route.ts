@@ -51,6 +51,11 @@ export async function POST(
 
   if (!match) return NextResponse.json({ error: 'Match not found' }, { status: 404 })
 
+  // Check for timeout
+  if (match.endsAt && new Date() > match.endsAt) {
+    return NextResponse.json({ error: 'Match has timed out' }, { status: 400 })
+  }
+
   const isAgent1 = match.agent1Id === agent_id
   const isAgent2 = match.agent2Id === agent_id
 

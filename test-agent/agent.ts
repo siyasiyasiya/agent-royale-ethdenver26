@@ -4,10 +4,12 @@
  * This agent:
  * 1. Registers with the API
  * 2. Joins the matchmaking queue
- * 3. Opens the starting Wikipedia article
- * 4. Streams screenshots via CDP
- * 5. Clicks links to navigate toward the target
- * 6. Claims victory when it reaches the target
+ * 3. Waits to be paired with opponent
+ * 4. Signals ready when browser is launched
+ * 5. Waits for match to start
+ * 6. Streams screenshots via CDP
+ * 7. Clicks links to navigate toward the target
+ * 8. Claims victory when it reaches the target
  */
 
 import { chromium, Browser, Page, CDPSession } from 'playwright'
@@ -21,12 +23,13 @@ interface RegistrationResponse {
   name: string
 }
 
-interface MatchResponse {
-  match_id: string
-  status: string
-  start_article: string
-  target_article: string
-  time_limit_seconds: number
+interface QueueResponse {
+  status: string // 'queued' | 'paired'
+  match_id?: string
+  match_status?: string
+  start_article?: string
+  target_article?: string
+  time_limit_seconds?: number
   message?: string
 }
 
@@ -37,6 +40,7 @@ class WikiSpeedrunAgent {
   private agentId: string = ''
   private apiKey: string = ''
   private matchId: string = ''
+  private startArticle: string = ''
   private targetArticle: string = ''
   private clickCount: number = 0
   private streaming: boolean = false
@@ -49,34 +53,35 @@ class WikiSpeedrunAgent {
       await this.register()
       console.log(`[${AGENT_NAME}] Registered as ${this.agentId}`)
 
-      // Small delay to ensure DB commit
-      await new Promise(r => setTimeout(r, 500))
-
-      // 2. Join queue
+      // 2. Join queue and wait to be paired
       console.log(`[${AGENT_NAME}] Joining matchmaking queue...`)
-      const match = await this.joinQueue()
-      this.matchId = match.match_id
-      this.targetArticle = match.target_article
-      console.log(`[${AGENT_NAME}] Match: ${this.matchId}`)
+      const queueResult = await this.joinQueueAndWaitForPairing()
+      this.matchId = queueResult.match_id!
+      this.startArticle = queueResult.start_article!
+      this.targetArticle = queueResult.target_article!
+      console.log(`[${AGENT_NAME}] Paired! Match: ${this.matchId}`)
+      console.log(`[${AGENT_NAME}] Start: ${this.startArticle}`)
       console.log(`[${AGENT_NAME}] Target: ${this.targetArticle}`)
 
-      // 3. Wait for match to start if needed
-      if (match.status === 'waiting_for_opponent') {
-        console.log(`[${AGENT_NAME}] Waiting for opponent...`)
-        await this.waitForMatchStart()
-      }
-
-      // 4. Launch browser and navigate to start
+      // 3. Launch browser and navigate to start
       console.log(`[${AGENT_NAME}] Launching browser...`)
       await this.launchBrowser()
-      await this.page!.goto(match.start_article)
-      console.log(`[${AGENT_NAME}] Starting at: ${match.start_article}`)
+      await this.page!.goto(this.startArticle)
+      console.log(`[${AGENT_NAME}] Browser ready at start article`)
 
-      // 5. Start streaming
+      // 4. Signal ready
+      console.log(`[${AGENT_NAME}] Signaling ready...`)
+      await this.signalReady()
+
+      // 5. Wait for match to start (both agents ready)
+      console.log(`[${AGENT_NAME}] Waiting for match to start...`)
+      await this.waitForMatchStart()
+
+      // 6. Start streaming
       console.log(`[${AGENT_NAME}] Starting screen stream...`)
       await this.startStreaming()
 
-      // 6. Navigate toward target
+      // 7. Navigate toward target
       console.log(`[${AGENT_NAME}] Racing to ${this.targetArticle}...`)
       await this.navigateToTarget()
 
@@ -106,7 +111,8 @@ class WikiSpeedrunAgent {
     this.apiKey = data.api_key
   }
 
-  private async joinQueue(): Promise<MatchResponse> {
+  private async joinQueueAndWaitForPairing(): Promise<QueueResponse> {
+    // Join queue
     const res = await fetch(`${API_BASE}/api/matches/queue`, {
       method: 'POST',
       headers: {
@@ -120,15 +126,60 @@ class WikiSpeedrunAgent {
       throw new Error(`Join queue failed: ${await res.text()}`)
     }
 
-    return res.json()
+    const result: QueueResponse = await res.json()
+
+    // If immediately paired, return
+    if (result.status === 'paired') {
+      return result
+    }
+
+    // Otherwise poll until paired
+    console.log(`[${AGENT_NAME}] In queue, waiting for opponent...`)
+    while (true) {
+      await new Promise(r => setTimeout(r, 1000))
+
+      const checkRes = await fetch(`${API_BASE}/api/matches/queue`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${this.apiKey}` },
+      })
+
+      const checkResult: QueueResponse = await checkRes.json()
+
+      if (checkResult.status === 'paired') {
+        this.matchId = checkResult.match_id!
+        // Fetch full match details
+        const matchRes = await fetch(`${API_BASE}/api/matches/${this.matchId}`, {
+          headers: { 'Authorization': `Bearer ${this.apiKey}` },
+        })
+        const match = await matchRes.json()
+        return {
+          status: 'paired',
+          match_id: match.match_id,
+          start_article: match.start_article,
+          target_article: match.target_article,
+          time_limit_seconds: match.time_limit_seconds,
+        }
+      }
+    }
+  }
+
+  private async signalReady(): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/matches/${this.matchId}/ready`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({ agent_id: this.agentId }),
+    })
+
+    const result = await res.json()
+    console.log(`[${AGENT_NAME}] Ready signal:`, result.message || result.status)
   }
 
   private async waitForMatchStart(): Promise<void> {
-    // Poll until match is active (with timeout)
-    const maxWait = 60 // 60 seconds max
-    let waited = 0
-
-    while (waited < maxWait) {
+    // Poll until match is active
+    while (true) {
       const res = await fetch(`${API_BASE}/api/matches/${this.matchId}`, {
         headers: { 'Authorization': `Bearer ${this.apiKey}` },
       })
@@ -139,12 +190,8 @@ class WikiSpeedrunAgent {
         return
       }
 
-      console.log(`[${AGENT_NAME}] Still waiting... (${waited}s)`)
-      await new Promise(r => setTimeout(r, 2000))
-      waited += 2
+      await new Promise(r => setTimeout(r, 500))
     }
-
-    throw new Error('Timeout waiting for opponent')
   }
 
   private async launchBrowser(): Promise<void> {
@@ -264,42 +311,24 @@ class WikiSpeedrunAgent {
     if (!this.page) return false
 
     try {
-      // Wait for content to be ready
-      await this.page.waitForSelector('#mw-content-text', { timeout: 5000 })
-
-      // Get all links in the article content (filter out bad links)
+      // Get all links in the article content
       const links = await this.page.$$eval(
-        '#mw-content-text p a[href^="/wiki/"]:not([href*=":"]):not([href*="#"])',
+        '#mw-content-text a[href^="/wiki/"]:not([href*=":"]):not([href*="#"])',
         (elements) => {
           return elements
             .map((el) => ({
               href: el.getAttribute('href') || '',
               text: el.textContent?.trim() || '',
             }))
-            .filter((l) => {
-              // Must have reasonable length
-              if (l.text.length < 3 || l.text.length > 50) return false
-              // No single letters or numbers
-              if (/^[a-zA-Z0-9]$/.test(l.text)) return false
-              // No disambiguation pages
-              if (l.href.includes('disambiguation') || l.href.includes('_(disambiguation)')) return false
-              // No "Main article" type links
-              if (l.text.toLowerCase().includes('main article')) return false
-              // No citation/reference links
-              if (/^\[\d+\]$/.test(l.text)) return false
-              // No edit links
-              if (l.text.toLowerCase() === 'edit') return false
-              return true
-            })
+            .filter((l) => l.text.length > 0 && l.text.length < 50)
+            .slice(0, 20) // Limit to first 20 links
         }
       )
 
-      if (links.length === 0) {
-        console.log(`[${AGENT_NAME}] No valid links found on page`)
-        return false
-      }
+      if (links.length === 0) return false
 
       // Simple strategy: pick a link that might lead toward the target
+      // In a real agent, this would use LLM reasoning
       const targetLower = this.targetArticle.toLowerCase()
 
       // Prefer links that contain words from the target
@@ -308,15 +337,14 @@ class WikiSpeedrunAgent {
         l.text.toLowerCase().includes(targetLower)
       )
 
-      // Otherwise pick a random link from the first 10 good ones
+      // Otherwise pick a "good" looking link (longer, not a date/number)
       if (!bestLink) {
         const goodLinks = links.filter(l =>
           l.text.length > 3 &&
           !/^\d+$/.test(l.text) &&
           !l.text.match(/^(January|February|March|April|May|June|July|August|September|October|November|December)/)
         )
-        const pool = goodLinks.length > 0 ? goodLinks.slice(0, 10) : links.slice(0, 10)
-        bestLink = pool[Math.floor(Math.random() * pool.length)]
+        bestLink = goodLinks[Math.floor(Math.random() * Math.min(5, goodLinks.length))]
       }
 
       if (!bestLink) {

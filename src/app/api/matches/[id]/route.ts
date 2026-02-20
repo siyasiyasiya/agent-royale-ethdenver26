@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { getFramesForMatch } from '@/lib/frames'
+import { getFramesForMatch, emitMatchEvent, clearMatchFrames } from '@/lib/frames'
 
 // GET /api/matches/[id] - Get match details
 export async function GET(
@@ -22,13 +22,46 @@ export async function GET(
     return NextResponse.json({ error: 'Match not found' }, { status: 404 })
   }
 
-  // Auto-expire if time ran out but status wasn't updated
-  if (match.status === 'active' && match.endsAt && match.endsAt < new Date()) {
+  // Check for timeout - if match is active but time has expired
+  if (match.status === 'active' && match.endsAt && new Date() > match.endsAt) {
+    // Match timed out - complete as draw
+    const now = new Date()
     await prisma.match.update({
       where: { id: matchId },
-      data: { status: 'complete', completedAt: new Date() },
+      data: {
+        status: 'complete',
+        completedAt: now,
+        // No winner - it's a draw/timeout
+      },
     })
+
+    // Update both agents' draws count
+    if (match.agent1Id) {
+      await prisma.agent.update({
+        where: { id: match.agent1Id },
+        data: { draws: { increment: 1 } },
+      })
+    }
+    if (match.agent2Id) {
+      await prisma.agent.update({
+        where: { id: match.agent2Id },
+        data: { draws: { increment: 1 } },
+      })
+    }
+
+    // Emit timeout event
+    emitMatchEvent(matchId, 'match_timeout', {
+      agent1: match.agent1 ? { agent_id: match.agent1.id, name: match.agent1.name } : null,
+      agent2: match.agent2 ? { agent_id: match.agent2.id, name: match.agent2.name } : null,
+      time_elapsed_seconds: match.timeLimitSeconds,
+    })
+
+    // Clear frames
+    clearMatchFrames(matchId)
+
+    // Update match object for response
     match.status = 'complete'
+    match.completedAt = now
   }
 
   // Calculate time remaining if match is active

@@ -5,6 +5,7 @@ export interface FrameData {
   currentUrl: string
   clickCount: number
   timestamp: number
+  thought?: string // AI reasoning
 }
 
 // In-memory store for latest frames
@@ -15,6 +16,11 @@ const frameStore = new Map<string, FrameData>()
 export function storeFrame(matchId: string, agentId: string, data: Omit<FrameData, 'agentId'>) {
   const frameData: FrameData = { ...data, agentId }
   frameStore.set(`${matchId}:${agentId}`, frameData)
+
+  // Debug: log when emitting thought
+  if (data.thought && data.thought.trim()) {
+    console.log(`[Frame emit] ${agentId} thought: ${data.thought.substring(0, 50)}...`)
+  }
 
   // Emit to socket.io room for this match
   if (global.io) {
