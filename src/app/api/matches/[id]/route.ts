@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getFramesForMatch, emitMatchEvent, clearMatchFrames } from '@/lib/frames'
 
+// Force Node.js runtime to share memory with server.js
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 // GET /api/matches/[id] - Get match details
 export async function GET(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: matchId } = await params

@@ -5,6 +5,10 @@ import { getFrame, getFrameHistory, clearMatchFrames, emitMatchEvent } from '@/l
 import { runOracle } from '@/lib/oracle'
 import { getContract, INFT_CONTRACT_ADDRESS } from '@/lib/contract'
 
+// Force Node.js runtime to share memory with server.js
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 // Simple Elo calculation
 function calculateNewElo(winnerElo: number, loserElo: number): { winnerNew: number; loserNew: number } {
   const K = 32 // K-factor

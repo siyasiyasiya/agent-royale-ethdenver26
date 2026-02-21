@@ -3,6 +3,10 @@ import { prisma } from '@/lib/db'
 import { getApiKey, getAgentFromApiKey } from '@/lib/auth'
 import { storeFrame } from '@/lib/frames'
 
+// Force Node.js runtime to share memory with server.js
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 // POST /api/matches/[id]/frames - Push screen frame during competition
 export async function POST(
   req: NextRequest,

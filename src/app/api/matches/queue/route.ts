@@ -3,6 +3,10 @@ import { prisma } from '@/lib/db'
 import { getApiKey, getAgentFromApiKey } from '@/lib/auth'
 import { emitMatchEvent } from '@/lib/frames'
 
+// Force Node.js runtime to share memory with server.js
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 interface Prompt {
   startArticle: string
   targetArticle: string
