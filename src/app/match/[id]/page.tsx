@@ -231,6 +231,7 @@ export default function MatchPage() {
   const socketRef = useRef<Socket | null>(null)
   const chatRef = useRef<HTMLDivElement>(null)
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
+  const seenMessageIdsRef = useRef<Set<string>>(new Set())
 
   // Set viewer count on client only to avoid hydration mismatch
   useEffect(() => {
@@ -289,6 +290,23 @@ export default function MatchPage() {
   useEffect(() => {
     fetchMatch()
   }, [fetchMatch])
+
+  useEffect(() => {
+    const fetchMessages = async () => {
+      try {
+        const res = await fetch(`/api/matches/${matchId}/chat`)
+        if (!res.ok) return
+        const data = await res.json()
+        const history: ChatMessage[] = Array.isArray(data.messages) ? data.messages : []
+        seenMessageIdsRef.current = new Set(history.map(m => m.id))
+        setMessages(history)
+      } catch (err) {
+        console.error('Failed to fetch chat history:', err)
+      }
+    }
+
+    fetchMessages()
+  }, [matchId])
 
   // Poll for match updates when waiting for opponent
   useEffect(() => {
@@ -525,6 +543,13 @@ export default function MatchPage() {
       }
     })
 
+    socket.on('chat_message', (data: ChatMessage & { matchId: string }) => {
+      if (data.matchId !== matchId) return
+      if (seenMessageIdsRef.current.has(data.id)) return
+      seenMessageIdsRef.current.add(data.id)
+      setMessages(prev => [...prev, data])
+    })
+
     return () => {
       socket.emit('leave_match', matchId)
       socket.disconnect()
@@ -537,18 +562,38 @@ export default function MatchPage() {
     }
   }, [messages])
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!chatInput.trim()) return
+    const trimmed = chatInput.trim()
+    if (!trimmed) return
 
-    const newMessage: ChatMessage = {
-      id: Date.now().toString(),
-      user: 'You',
-      message: chatInput.trim(),
-      timestamp: Date.now(),
-    }
-    setMessages(prev => [...prev, newMessage])
+    const text = trimmed.slice(0, 280)
     setChatInput('')
+
+    try {
+      const res = await fetch(`/api/matches/${matchId}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user: 'Viewer',
+          message: text,
+        }),
+      })
+
+      if (!res.ok) {
+        throw new Error('Chat message failed to send')
+      }
+
+      // Socket echo handles normal rendering. If realtime emit is unavailable,
+      // use API response as fallback so sender still sees their message.
+      const sent: ChatMessage = await res.json()
+      if (!seenMessageIdsRef.current.has(sent.id)) {
+        seenMessageIdsRef.current.add(sent.id)
+        setMessages(prev => [...prev, sent])
+      }
+    } catch (err) {
+      console.error('Failed to send chat message:', err)
+    }
   }
 
   if (error) {
@@ -766,6 +811,7 @@ export default function MatchPage() {
               type="text"
               value={chatInput}
               onChange={e => setChatInput(e.target.value)}
+              maxLength={280}
               placeholder="Send a message"
               className="w-full bg-[#0e0e10] border border-[#2d2d32] px-3 py-2 text-[12px] text-[#efeff1] placeholder-[#848494] focus:outline-none focus:border-[#9147ff]"
             />
