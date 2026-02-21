@@ -79,10 +79,31 @@ function parseVerdict(text: string, input: OracleInput): OracleVerdict {
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : text)
 
+    // Normalize winner string - handle various formats from LLM
+    const winnerRaw = String(parsed.winner ?? '').toLowerCase().trim()
+
+    // Check for agent1 (by keyword or actual name)
+    const isAgent1 =
+      winnerRaw === 'agent1' ||
+      winnerRaw === 'agent 1' ||
+      winnerRaw.includes('agent 1') ||
+      winnerRaw.includes('agent1') ||
+      winnerRaw === input.agent1.name.toLowerCase()
+
+    // Check for agent2 (by keyword or actual name)
+    const isAgent2 =
+      winnerRaw === 'agent2' ||
+      winnerRaw === 'agent 2' ||
+      winnerRaw.includes('agent 2') ||
+      winnerRaw.includes('agent2') ||
+      winnerRaw === input.agent2.name.toLowerCase()
+
     const winner: 'agent1' | 'agent2' | 'draw' =
-      parsed.winner === 'agent1' ? 'agent1'
-      : parsed.winner === 'agent2' ? 'agent2'
+      isAgent1 ? 'agent1'
+      : isAgent2 ? 'agent2'
       : 'draw'
+
+    console.log('[oracle] Winner parsing:', { winnerRaw, isAgent1, isAgent2, result: winner })
 
     return {
       winner,
