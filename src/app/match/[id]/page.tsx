@@ -257,6 +257,7 @@ export default function MatchPage() {
     fetchMatch()
   }, [fetchMatch])
 
+  // Poll for match updates when waiting for opponent
   useEffect(() => {
     if (pollingRef.current) {
       clearInterval(pollingRef.current)
@@ -271,6 +272,136 @@ export default function MatchPage() {
       }
     }
   }, [match?.status, fetchMatch])
+
+  // Polling fallback for frames (when Socket.io doesn't work in production)
+  const framePollingRef = useRef<NodeJS.Timeout | null>(null)
+  const lastFrameTimestampRef = useRef<Record<string, number>>({})
+
+  useEffect(() => {
+    if (framePollingRef.current) {
+      clearInterval(framePollingRef.current)
+      framePollingRef.current = null
+    }
+
+    // Only poll when match is active
+    if (match?.status !== 'active') return
+
+    const pollFrames = async () => {
+      try {
+        const res = await fetch(`/api/matches/${matchId}`)
+        if (!res.ok) return
+        const data = await res.json()
+
+        // Update frames from API response
+        if (data.frames) {
+          if (data.frames.agent1 && data.agent1) {
+            const agentId = data.agent1.agent_id
+            const newTimestamp = data.frames.agent1.timestamp || 0
+            const lastTimestamp = lastFrameTimestampRef.current[agentId] || 0
+
+            if (newTimestamp > lastTimestamp) {
+              lastFrameTimestampRef.current[agentId] = newTimestamp
+              setFrames(prev => ({
+                ...prev,
+                [agentId]: {
+                  agentId,
+                  frame: data.frames.agent1.frame,
+                  currentUrl: data.frames.agent1.current_url,
+                  clickCount: data.frames.agent1.click_count,
+                  timestamp: newTimestamp,
+                  thought: data.frames.agent1.thought,
+                },
+              }))
+
+              // Handle thought
+              const thoughtText = data.frames.agent1.thought?.trim()
+              if (thoughtText) {
+                const article = data.frames.agent1.current_url
+                  ? decodeURIComponent(data.frames.agent1.current_url.split('/wiki/')[1] || '').replace(/_/g, ' ')
+                  : 'Unknown'
+                setThoughts(prev => {
+                  const agentThoughts = prev[agentId] || []
+                  const lastThought = agentThoughts[agentThoughts.length - 1]
+                  if (lastThought?.thought === thoughtText && lastThought?.article === article) {
+                    return prev
+                  }
+                  return {
+                    ...prev,
+                    [agentId]: [...agentThoughts, { id: `${agentId}-${newTimestamp}`, thought: thoughtText, article, timestamp: newTimestamp }],
+                  }
+                })
+              }
+            }
+          }
+
+          if (data.frames.agent2 && data.agent2) {
+            const agentId = data.agent2.agent_id
+            const newTimestamp = data.frames.agent2.timestamp || 0
+            const lastTimestamp = lastFrameTimestampRef.current[agentId] || 0
+
+            if (newTimestamp > lastTimestamp) {
+              lastFrameTimestampRef.current[agentId] = newTimestamp
+              setFrames(prev => ({
+                ...prev,
+                [agentId]: {
+                  agentId,
+                  frame: data.frames.agent2.frame,
+                  currentUrl: data.frames.agent2.current_url,
+                  clickCount: data.frames.agent2.click_count,
+                  timestamp: newTimestamp,
+                  thought: data.frames.agent2.thought,
+                },
+              }))
+
+              // Handle thought
+              const thoughtText = data.frames.agent2.thought?.trim()
+              if (thoughtText) {
+                const article = data.frames.agent2.current_url
+                  ? decodeURIComponent(data.frames.agent2.current_url.split('/wiki/')[1] || '').replace(/_/g, ' ')
+                  : 'Unknown'
+                setThoughts(prev => {
+                  const agentThoughts = prev[agentId] || []
+                  const lastThought = agentThoughts[agentThoughts.length - 1]
+                  if (lastThought?.thought === thoughtText && lastThought?.article === article) {
+                    return prev
+                  }
+                  return {
+                    ...prev,
+                    [agentId]: [...agentThoughts, { id: `${agentId}-${newTimestamp}`, thought: thoughtText, article, timestamp: newTimestamp }],
+                  }
+                })
+              }
+            }
+          }
+        }
+
+        // Update match status
+        if (data.status === 'complete' || data.status === 'judging') {
+          setMatch(data)
+          if (data.winner) {
+            setWinnerData({ agent_id: data.winner.agent_id, name: data.winner.name })
+          }
+          if (data.status === 'judging') {
+            setJudging(true)
+          }
+        }
+      } catch (err) {
+        console.error('[Polling] Error fetching frames:', err)
+      }
+    }
+
+    // Poll every 500ms for smooth frame updates
+    framePollingRef.current = setInterval(pollFrames, 500)
+    // Initial poll
+    pollFrames()
+
+    return () => {
+      if (framePollingRef.current) {
+        clearInterval(framePollingRef.current)
+        framePollingRef.current = null
+      }
+    }
+  }, [match?.status, matchId])
 
   useEffect(() => {
     // Connect to same origin with explicit settings for Railway

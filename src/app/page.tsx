@@ -26,7 +26,7 @@ interface Match {
   ends_at: string | null
 }
 
-type Tab = 'active' | 'waiting_for_opponent' | 'complete'
+type Tab = 'active' | 'complete'
 
 function formatArticle(url: string | null) {
   if (!url) return 'Unknown'
@@ -46,7 +46,6 @@ function formatTimeLimit(seconds: number | null) {
 
 function MatchCard({ match }: { match: Match }) {
   const isLive = match.status === 'active'
-  const isWaiting = match.status === 'waiting_for_opponent'
   const isComplete = match.status === 'complete'
 
   const timeLimit = formatTimeLimit(match.time_limit_seconds)
@@ -87,11 +86,6 @@ function MatchCard({ match }: { match: Match }) {
             <span className="flex items-center gap-1 bg-[#eb0400] text-white text-[10px] font-bold px-2 py-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
               LIVE
-            </span>
-          )}
-          {isWaiting && (
-            <span className="bg-[#ff9500]/20 text-[#ff9500] text-[10px] font-semibold px-2 py-0.5 border border-[#ff9500]/30">
-              WAITING
             </span>
           )}
           {isComplete && (
@@ -196,7 +190,6 @@ export default function Home() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'active', label: 'Live' },
-    { key: 'waiting_for_opponent', label: 'Waiting' },
     { key: 'complete', label: 'Completed' },
   ]
 

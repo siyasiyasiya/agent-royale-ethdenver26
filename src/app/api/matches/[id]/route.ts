@@ -115,16 +115,21 @@ export async function GET(
     ends_at: match.endsAt?.toISOString() || null,
     completed_at: match.completedAt?.toISOString() || null,
 
+    // Include full frame data for polling fallback (when Socket.io doesn't work in production)
     frames: frames ? {
       agent1: frames.agent1 ? {
+        frame: frames.agent1.frame,
         current_url: frames.agent1.currentUrl,
         click_count: frames.agent1.clickCount,
         timestamp: frames.agent1.timestamp,
+        thought: frames.agent1.thought,
       } : null,
       agent2: frames.agent2 ? {
+        frame: frames.agent2.frame,
         current_url: frames.agent2.currentUrl,
         click_count: frames.agent2.clickCount,
         timestamp: frames.agent2.timestamp,
+        thought: frames.agent2.thought,
       } : null,
     } : null,
   })
