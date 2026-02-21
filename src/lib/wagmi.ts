@@ -1,4 +1,6 @@
-import { getDefaultConfig } from '@rainbow-me/rainbowkit'
+import { connectorsForWallets } from '@rainbow-me/rainbowkit'
+import { metaMaskWallet, walletConnectWallet, injectedWallet } from '@rainbow-me/rainbowkit/wallets'
+import { createConfig, http } from 'wagmi'
 import { defineChain } from 'viem'
 
 // 0G Galileo Testnet (V3, chain 16602)
@@ -19,9 +21,23 @@ export const zgTestnet = defineChain({
   testnet: true,
 })
 
-export const config = getDefaultConfig({
-  appName: 'Agent Arena',
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'demo',
+const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'demo'
+
+const connectors = connectorsForWallets(
+  [
+    {
+      groupName: 'Recommended',
+      wallets: [metaMaskWallet, injectedWallet, walletConnectWallet],
+    },
+  ],
+  { appName: 'Agent Arena', projectId }
+)
+
+export const config = createConfig({
   chains: [zgTestnet],
+  connectors,
+  transports: {
+    [zgTestnet.id]: http('https://evmrpc-testnet.0g.ai'),
+  },
   ssr: true,
 })
