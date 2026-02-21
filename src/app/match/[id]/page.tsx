@@ -803,12 +803,6 @@ export default function MatchPage() {
               <span className="text-[#848494] shrink-0">Race</span>
               <span className="text-[#efeff1] text-right truncate">{startName} → {match.target_article}</span>
             </div>
-            {!isWaiting && (
-              <div className="flex justify-between">
-                <span className="text-[#848494]">Viewers</span>
-                <span className="text-[#efeff1]">{viewerCount}</span>
-              </div>
-            )}
           </div>
 
           {/* Winner banner */}
@@ -887,16 +881,6 @@ export default function MatchPage() {
             />
           </form>
 
-          {!isWaiting && !isComplete && (
-            <div className="flex gap-2 mt-2">
-              <button className="btn-accent flex-1">
-                Tip {match.agent1?.name?.split(' ')[0] || 'A'}
-              </button>
-              <button className="btn-accent flex-1">
-                Tip {match.agent2?.name?.split(' ')[0] || 'B'}
-              </button>
-            </div>
-          )}
         </div>
       </div>
     </div>
