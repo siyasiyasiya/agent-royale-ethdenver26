@@ -5,14 +5,15 @@ export const INFT_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_INFT_CONTRACT_ADDRE
 
 // ABI for the AgentArenaINFT contract
 export const INFT_ABI = [
-  // Mint (platform only)
+  // Mint (platform only) - tokenId is generated off-chain
   {
     inputs: [
+      { name: 'tokenId', type: 'uint256' },
       { name: 'uri', type: 'string' },
       { name: 'claimCodeHash', type: 'bytes32' },
     ],
     name: 'mint',
-    outputs: [{ name: '', type: 'uint256' }],
+    outputs: [],
     stateMutability: 'nonpayable',
     type: 'function',
   },
@@ -74,13 +75,6 @@ export const INFT_ABI = [
     inputs: [{ name: 'tokenId', type: 'uint256' }],
     name: 'isUnclaimed',
     outputs: [{ name: '', type: 'bool' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [],
-    name: 'nextTokenId',
-    outputs: [{ name: '', type: 'uint256' }],
     stateMutability: 'view',
     type: 'function',
   },

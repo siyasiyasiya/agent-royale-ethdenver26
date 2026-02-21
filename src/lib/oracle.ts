@@ -10,16 +10,15 @@ const ORACLE_SYSTEM_PROMPT = `You are an impartial judge for a Wikipedia Speedru
 
 You will be given:
 - The task (start article → target article)
-- Each agent's full navigation path (every page they visited, in order)
-- Each agent's final page and click count
+- Each agent's final Wikipedia page and click count
 
 Rules for judging:
-- If an agent's path ends at the target article, they reached it
+- If an agent's final page matches the target article, they reached it and win
 - If both reached it, the one with fewer clicks wins
-- If neither reached it, judge who made better progress toward the target based on their path and final page
+- If neither reached it, judge who made better progress toward the target based on their final page topic
 - Only declare a draw if both agents have clearly equivalent outcomes
 
-Respond with ONLY valid JSON:
+Respond with ONLY valid JSON, no markdown, no explanation outside the JSON:
 {
   "winner": "agent1" | "agent2" | "draw",
   "reasoning": "<1-3 sentences explaining the decision>"
@@ -50,47 +49,27 @@ export interface OracleVerdict {
   reasoning: string
 }
 
-// Extract article title from Wikipedia URL
-function extractArticle(url: string): string {
+// Extract readable article title from Wikipedia URL
+function extractArticle(url: string | null): string {
+  if (!url) return 'unknown'
   const match = url.match(/\/wiki\/([^#?]+)/)
   return match ? decodeURIComponent(match[1]).replace(/_/g, ' ') : url
 }
 
-// Build path summary from frame history
-function buildPath(frames: FrameData[]): string {
-  if (!frames.length) return 'No navigation recorded'
-  // Deduplicate consecutive same URLs
-  const deduped: string[] = []
-  for (const f of frames) {
-    const article = extractArticle(f.currentUrl)
-    if (deduped[deduped.length - 1] !== article) {
-      deduped.push(article)
-    }
-  }
-  return deduped.join(' → ')
-}
-
 function buildUserMessage(input: OracleInput): string {
-  const path1 = input.agent1.frames?.length
-    ? buildPath(input.agent1.frames)
-    : (input.agent1.lastUrl ? extractArticle(input.agent1.lastUrl) : 'unknown')
-
-  const path2 = input.agent2.frames?.length
-    ? buildPath(input.agent2.frames)
-    : (input.agent2.lastUrl ? extractArticle(input.agent2.lastUrl) : 'unknown')
+  const final1 = extractArticle(input.agent1.lastUrl)
+  const final2 = extractArticle(input.agent2.lastUrl)
 
   return `Task: ${input.taskDescription}
 Target article: ${input.targetArticle}
 
 Agent 1 (${input.agent1.name}):
-- Navigation path: ${path1}
+- Final page: ${final1}
 - Total clicks: ${input.agent1.clickCount}
-- Final page: ${input.agent1.lastUrl ? extractArticle(input.agent1.lastUrl) : 'unknown'}
 
 Agent 2 (${input.agent2.name}):
-- Navigation path: ${path2}
+- Final page: ${final2}
 - Total clicks: ${input.agent2.clickCount}
-- Final page: ${input.agent2.lastUrl ? extractArticle(input.agent2.lastUrl) : 'unknown'}
 
 Who won?`
 }
@@ -143,61 +122,39 @@ async function get0GClient() {
   return { client, model }
 }
 
-// Simple URL-based verification using final URL
-function simpleUrlVerdict(input: OracleInput): OracleVerdict {
+// URL-based fallback — only used if 0G compute errors
+function urlFallbackVerdict(input: OracleInput): OracleVerdict {
   const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
   const target = normalize(input.targetArticle)
 
-  const getArticle = (url: string) => {
+  const getArticle = (url: string | null) => {
+    if (!url) return ''
     const match = url.match(/\/wiki\/([^#?]+)/)
     return match ? normalize(decodeURIComponent(match[1])) : ''
   }
 
-  // Check frame history for target — agent must have actually visited target page
-  const agent1Reached = input.agent1.frames?.length
-    ? input.agent1.frames.some(f => getArticle(f.currentUrl) === target)
-    : getArticle(input.agent1.lastUrl ?? '') === target
-
-  const agent2Reached = input.agent2.frames?.length
-    ? input.agent2.frames.some(f => getArticle(f.currentUrl) === target)
-    : getArticle(input.agent2.lastUrl ?? '') === target
+  const agent1Reached = getArticle(input.agent1.lastUrl) === target
+  const agent2Reached = getArticle(input.agent2.lastUrl) === target
 
   if (agent1Reached && agent2Reached) {
     if (input.agent1.clickCount < input.agent2.clickCount) {
-      return { winner: 'agent1', winnerId: input.agent1.agentId, reasoning: `Both reached ${input.targetArticle}. ${input.agent1.name} wins with fewer clicks (${input.agent1.clickCount} vs ${input.agent2.clickCount}).` }
+      return { winner: 'agent1', winnerId: input.agent1.agentId, reasoning: `Both reached ${input.targetArticle}. ${input.agent1.name} wins with fewer clicks.` }
     } else if (input.agent2.clickCount < input.agent1.clickCount) {
-      return { winner: 'agent2', winnerId: input.agent2.agentId, reasoning: `Both reached ${input.targetArticle}. ${input.agent2.name} wins with fewer clicks (${input.agent2.clickCount} vs ${input.agent1.clickCount}).` }
-    } else {
-      return { winner: 'draw', winnerId: null, reasoning: `Both reached ${input.targetArticle} with the same number of clicks. Draw.` }
+      return { winner: 'agent2', winnerId: input.agent2.agentId, reasoning: `Both reached ${input.targetArticle}. ${input.agent2.name} wins with fewer clicks.` }
     }
+    return { winner: 'draw', winnerId: null, reasoning: `Both reached ${input.targetArticle} with equal clicks. Draw.` }
   } else if (agent1Reached) {
-    return { winner: 'agent1', winnerId: input.agent1.agentId, reasoning: `${input.agent1.name} reached ${input.targetArticle} in ${input.agent1.clickCount} clicks. ${input.agent2.name} did not reach the target.` }
+    return { winner: 'agent1', winnerId: input.agent1.agentId, reasoning: `${input.agent1.name} reached ${input.targetArticle}. ${input.agent2.name} did not.` }
   } else if (agent2Reached) {
-    return { winner: 'agent2', winnerId: input.agent2.agentId, reasoning: `${input.agent2.name} reached ${input.targetArticle} in ${input.agent2.clickCount} clicks. ${input.agent1.name} did not reach the target.` }
-  } else {
-    return { winner: 'draw', winnerId: null, reasoning: `Neither agent reached ${input.targetArticle}. Draw.` }
+    return { winner: 'agent2', winnerId: input.agent2.agentId, reasoning: `${input.agent2.name} reached ${input.targetArticle}. ${input.agent1.name} did not.` }
   }
+  return { winner: 'draw', winnerId: null, reasoning: `Neither agent reached ${input.targetArticle}. Draw.` }
 }
 
 export async function runOracle(input: OracleInput): Promise<OracleVerdict> {
-  // First try URL/path verification — fast and reliable
-  const simpleVerdict = simpleUrlVerdict(input)
-
-  // If we have a clear winner from path matching, use it
-  if (simpleVerdict.winner !== 'draw') {
-    console.log('[oracle] Path verdict:', simpleVerdict)
-    return simpleVerdict
-  }
-
-  // Neither reached target — use 0G compute to judge who made better progress
-  // Pass the full navigation path from frame history
-  if (!process.env.ZERO_GRAVITY_PRIVATE_KEY) {
-    console.log('[oracle] No 0G key, using path verdict (draw)')
-    return simpleVerdict
-  }
+  console.log('[oracle] Calling 0G compute oracle...')
 
   try {
-    console.log('[oracle] Connecting to 0G compute to judge navigation paths...')
     const { client, model } = await get0GClient()
 
     const response = await client.chat.completions.create({
@@ -211,9 +168,11 @@ export async function runOracle(input: OracleInput): Promise<OracleVerdict> {
 
     const text = response.choices[0]?.message?.content ?? ''
     console.log('[oracle] 0G verdict raw:', text)
-    return parseVerdict(text, input)
+    const verdict = parseVerdict(text, input)
+    console.log('[oracle] 0G verdict parsed:', verdict)
+    return verdict
   } catch (err) {
-    console.error('[oracle] 0G compute failed:', err)
-    return simpleVerdict
+    console.error('[oracle] 0G compute failed, falling back to URL check:', err)
+    return urlFallbackVerdict(input)
   }
 }

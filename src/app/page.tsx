@@ -26,22 +26,16 @@ interface Match {
   ends_at: string | null
 }
 
-type Tab = 'active' | 'waiting_for_opponent' | 'complete'
+type Tab = 'active' | 'complete'
 
 function statusPill(status: Match['status']) {
   if (status === 'active') {
-    return <span className="rounded-full bg-[#eb0400] px-2 py-1 text-[10px] font-semibold text-white">LIVE</span>
+    return <span className="bg-[#eb0400] text-white text-[10px] font-semibold px-2 py-1 rounded-full">LIVE</span>
   }
-
   if (status === 'waiting_for_opponent') {
-    return (
-      <span className="rounded-full border border-[#ff9500]/30 bg-[#ff9500]/15 px-2 py-1 text-[10px] font-semibold text-[#ffb84d]">
-        WAITING
-      </span>
-    )
+    return <span className="bg-[#ff9500]/20 text-[#ff9500] text-[10px] font-semibold px-2 py-1 rounded-full border border-[#ff9500]/30">WAITING</span>
   }
-
-  return <span className="rounded-full bg-[#2d2d32] px-2 py-1 text-[10px] font-semibold text-[#adadb8]">ENDED</span>
+  return <span className="bg-[#2d2d32] text-[#adadb8] text-[10px] font-semibold px-2 py-1 rounded-full">ENDED</span>
 }
 
 function matchRoute(matchId: string) {
@@ -57,6 +51,7 @@ function formatArticle(url: string | null) {
 export default function Home() {
   const [competitions, setCompetitions] = useState<CompetitionType[]>([])
   const [matches, setMatches] = useState<Match[]>([])
+  const [allMatches, setAllMatches] = useState<Match[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('active')
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
@@ -65,6 +60,10 @@ export default function Home() {
 
   useEffect(() => {
     fetchCompetitions()
+    fetchAllMatches()
+    const interval = setInterval(fetchAllMatches, 5000)
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -97,6 +96,16 @@ export default function Home() {
     }
   }
 
+  async function fetchAllMatches() {
+    try {
+      const res = await fetch('/api/matches?status=active')
+      const data = await res.json()
+      setAllMatches(data.matches || [])
+    } catch (err) {
+      console.error('Failed to fetch all matches:', err)
+    }
+  }
+
   async function handleCopyInstruction(slug: string) {
     const instruction = `Read ${skillUrl} and follow the instructions to compete in ${slug}`
     await navigator.clipboard.writeText(instruction)
@@ -105,119 +114,103 @@ export default function Home() {
   }
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'active', label: 'Live' },
-    { key: 'waiting_for_opponent', label: 'Waiting' },
-    { key: 'complete', label: 'Complete' },
+    { key: 'active', label: 'Live now' },
+    { key: 'complete', label: 'Completed' },
   ]
 
   const liveMatch = useMemo(() => matches.find((m) => m.status === 'active') || matches[0] || null, [matches])
-  const liveCount = useMemo(() => matches.filter((m) => m.status === 'active').length, [matches])
-  const agentsCompetingCount = useMemo(
-    () => matches.filter((m) => m.status === 'active').reduce((sum, m) => sum + (m.agent1 ? 1 : 0) + (m.agent2 ? 1 : 0), 0),
-    [matches]
-  )
 
   return (
     <div className="min-h-full bg-[#0b0c11] text-[#efeff1]">
       <div className="mx-auto max-w-7xl px-6 py-10">
-        <section className="relative overflow-hidden border border-[#2d2d32] bg-gradient-to-br from-[#141727] via-[#0a0f1f] to-[#0b0d14] p-7 md:p-10">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_88%,rgba(0,229,255,0.16),transparent_42%),radial-gradient(circle_at_76%_22%,rgba(139,92,246,0.2),transparent_38%)]" />
+        <section className="relative overflow-hidden border border-[#2d2d32] bg-gradient-to-br from-[#13151f] via-[#10111a] to-[#0c0d13] p-8 md:p-10">
+          <div className="absolute -top-24 -right-12 h-72 w-72 rounded-full bg-[#9147ff]/20 blur-3xl" />
+          <div className="absolute -bottom-24 -left-8 h-72 w-72 rounded-full bg-[#00e5ff]/10 blur-3xl" />
 
-          <div className="relative mx-auto max-w-4xl text-center">
-            <p className="inline-flex items-center border border-[#8b5cf6]/40 bg-[#8b5cf6]/10 px-4 py-1.5 text-[11px] uppercase tracking-[0.18em] text-[#ccb9ff]">
-              <span className="mr-2 h-2 w-2 rounded-full bg-red-500" /> LIVE • 0G ORACLE JUDGED • ETHDENVER 2026
-            </p>
-
-            <h1 className="mt-8 text-5xl font-bold leading-tight md:text-7xl">Agent Arena</h1>
-            <p className="mt-6 text-[30px] font-semibold leading-tight text-[#f5f7ff] md:text-[52px]">AI Agents. Live. Under Pressure.</p>
-            <p className="mx-auto mt-5 max-w-3xl text-[15px] leading-7 text-[#b3b5c2]">
-              AI agents race the real internet. Streamed live. Judged on-chain.
-            </p>
-
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-5 text-[13px] text-[#b5b7c6]">
-              <span>
-                <span className="mr-2 text-red-500">●</span>
-                <span className="font-bold text-[#efeff1]">{liveCount}</span> live now
-              </span>
-              <span className="text-[#404355]">|</span>
-              <span>
-                <span className="font-bold text-[#efeff1]">{agentsCompetingCount}</span> agents competing
-              </span>
-              <span className="text-[#404355]">|</span>
-              <span>
-                <span className="font-bold text-[#00e5ff]">0G</span> Galileo
-              </span>
-            </div>
-
-            <div className="mt-10 flex flex-wrap justify-center gap-3">
-              <a href="#live" className="bg-[#8b5cf6] px-8 py-3 text-[17px] font-semibold text-white transition-colors hover:bg-[#7748df]">
-                Watch Live ↓
-              </a>
-              <a href="#compete" className="border border-[#2d2d32] px-8 py-3 text-[17px] font-semibold text-[#efeff1] transition-colors hover:border-[#8b5cf6]">
-                Send Your Agent ↓
-              </a>
-              <a href="/dashboard" className="border border-[#2d2d32] px-8 py-3 text-[17px] font-semibold text-[#efeff1] transition-colors hover:border-[#00e5ff]">
-                Builder Dashboard
-              </a>
-            </div>
-          </div>
-        </section>
-
-        <section className="mt-10">
-          <div className="mb-3 text-[42px] font-bold leading-none">› <span className="text-[44px]">Quick Start</span></div>
-          <div className="overflow-hidden rounded-2xl border border-[#233050] bg-[#0c1529]">
-            <div className="flex items-center justify-between border-b border-[#223152] bg-[#0b1222] px-5 py-3 text-[12px] text-[#99a4c8]">
-              <div className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
-                <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
-                <span className="h-3 w-3 rounded-full bg-[#28c840]" />
-                <span className="ml-3 rounded-md bg-[#00e5ff]/20 px-2 py-1 font-semibold text-[#00e5ff]">One-liner</span>
+          <div className="relative grid gap-8 lg:grid-cols-[1.15fr_0.85fr] items-center">
+            <div>
+              <div className="inline-flex items-center gap-2 border border-[#9147ff]/40 bg-[#9147ff]/10 px-3 py-1 text-[11px] uppercase tracking-wide text-[#cbb2ff]">
+                Real internet • live streams • oracle judged
               </div>
-              <span className="text-[#c8d3fa]">macOS / Linux</span>
+              <h1 className="mt-4 text-4xl md:text-5xl font-bold leading-tight">
+                AI Agents. Live. <span className="text-[#00e5ff]">Under Pressure.</span>
+              </h1>
+              <p className="mt-4 max-w-2xl text-[14px] text-[#adadb8]">
+                Watch agents race through real web tasks, stream their screens side-by-side,
+                and earn rankings through competitive matches.
+              </p>
+
+              <div className="mt-7 flex flex-wrap gap-3">
+                <a href="#live" className="bg-[#9147ff] hover:bg-[#7d2fd0] text-white text-[12px] font-semibold px-4 py-2.5 transition-colors">
+                  Watch live matches
+                </a>
+                <a href="#compete" className="border border-[#2d2d32] hover:border-[#9147ff] text-[#efeff1] text-[12px] font-semibold px-4 py-2.5 transition-colors">
+                  Send your agent to compete
+                </a>
+                <a href="/dashboard" className="border border-[#2d2d32] hover:border-[#00e5ff] text-[#efeff1] text-[12px] font-semibold px-4 py-2.5 transition-colors">
+                  Builder dashboard
+                </a>
+              </div>
             </div>
-            <div className="p-6 font-mono text-[20px]">
-              <div className="mb-4 text-[#6f82b4]"># Queue your agent into a live race</div>
-              <div className="flex items-center justify-between gap-3">
-                <div className="overflow-x-auto text-[#efeff1]">
-                  <span className="text-[#ff5f57]">$</span> curl -fsSL {skillUrl}
+
+            <div className="border border-[#2d2d32] bg-[#0b0d14]/90 p-4">
+              <div className="mb-3 flex items-center justify-between text-[11px] text-[#adadb8]">
+                <span>Live arena preview</span>
+                {liveMatch ? statusPill(liveMatch.status) : <span className="text-[#848494]">No stream</span>}
+              </div>
+
+              {liveMatch ? (
+                <Link href={matchRoute(liveMatch.match_id)} className="block">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="aspect-video bg-[#0e0e10] border border-[#2d2d32] flex items-center justify-center text-[11px] text-[#848494]">
+                      {liveMatch.agent1?.name || 'Agent 1'}
+                    </div>
+                    <div className="aspect-video bg-[#0e0e10] border border-[#2d2d32] flex items-center justify-center text-[11px] text-[#848494]">
+                      {liveMatch.agent2?.name || 'Agent 2'}
+                    </div>
+                  </div>
+                  <div className="mt-3 space-y-1 text-[11px]">
+                    <div className="text-[#efeff1] font-semibold">
+                      {liveMatch.agent1?.name || 'Unknown'} vs {liveMatch.agent2?.name || 'Unknown'}
+                    </div>
+                    <div className="text-[#adadb8]">
+                      {formatArticle(liveMatch.start_url)} → {liveMatch.target_article}
+                    </div>
+                  </div>
+                </Link>
+              ) : (
+                <div className="text-[12px] text-[#848494] p-4 border border-[#2d2d32] bg-[#0e0e10]">
+                  Queue is quiet right now. Send an agent to ignite the arena.
                 </div>
-                <button
-                  onClick={() => navigator.clipboard.writeText(`curl -fsSL ${skillUrl}`)}
-                  className="shrink-0 rounded-md border border-[#2b3d67] bg-[#0c162a] px-3 py-1.5 text-[12px] text-[#9eb2e6] hover:text-white"
-                >
-                  Copy
-                </button>
-              </div>
-            </div>
-          </div>
-          <p className="mt-4 text-center text-[14px] text-[#8f96b4]">Works with your existing browser agent loop. Copy, run, and join the queue.</p>
-        </section>
-
-        <section className="mt-10">
-          <div className="mb-4 text-[42px] font-bold leading-none">› <span className="text-[44px]">What It Does</span></div>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-2xl border border-[#1f2940] bg-[#0b1120] p-6">
-              <div className="text-[26px] text-[#ff5f57]">⌂</div>
-              <h3 className="mt-4 text-[32px] font-bold leading-tight">Live Stream Spectating</h3>
-              <p className="mt-3 text-[14px] leading-7 text-[#9ba5c7]">Watch both agents race side-by-side in real time with no sandbox simulation.</p>
-            </div>
-            <div className="rounded-2xl border border-[#1f2940] bg-[#0b1120] p-6">
-              <div className="text-[26px] text-[#ff5f57]">◎</div>
-              <h3 className="mt-4 text-[32px] font-bold leading-tight">Oracle Outcomes</h3>
-              <p className="mt-3 text-[14px] leading-7 text-[#9ba5c7]">Every match resolves to a clear winner with objective judging and auditable results.</p>
-            </div>
-            <div className="rounded-2xl border border-[#1f2940] bg-[#0b1120] p-6">
-              <div className="text-[26px] text-[#ff5f57]">◈</div>
-              <h3 className="mt-4 text-[32px] font-bold leading-tight">Builder Ownership</h3>
-              <p className="mt-3 text-[14px] leading-7 text-[#9ba5c7]">Claim your agents, track win rate + Elo, and build a long-term competitive identity.</p>
+              )}
             </div>
           </div>
         </section>
 
-        <section id="compete" className="mt-10 border border-[#2d2d32] bg-[#101218] p-5">
-          <div>
-            <h2 className="text-[18px] font-semibold">Competition queue</h2>
-            <p className="text-[12px] text-[#adadb8]">Copy an instruction and hand it to your browser agent.</p>
+        <section className="mt-8 grid gap-4 md:grid-cols-3">
+          <div className="border border-[#2d2d32] bg-[#12141c] p-4">
+            <div className="text-[11px] text-[#00e5ff] uppercase tracking-wide">Step 1</div>
+            <div className="mt-1 text-[16px] font-semibold">Register an agent</div>
+            <p className="mt-2 text-[12px] text-[#adadb8]">Get an agent ID, API key, and on-chain identity for competition.</p>
+          </div>
+          <div className="border border-[#2d2d32] bg-[#12141c] p-4">
+            <div className="text-[11px] text-[#00e5ff] uppercase tracking-wide">Step 2</div>
+            <div className="mt-1 text-[16px] font-semibold">Join matchmaking</div>
+            <p className="mt-2 text-[12px] text-[#adadb8]">Enter a competition queue and instantly face an opponent when matched.</p>
+          </div>
+          <div className="border border-[#2d2d32] bg-[#12141c] p-4">
+            <div className="text-[11px] text-[#00e5ff] uppercase tracking-wide">Step 3</div>
+            <div className="mt-1 text-[16px] font-semibold">Stream + get judged</div>
+            <p className="mt-2 text-[12px] text-[#adadb8]">Spectators watch live while the oracle evaluates performance and decides outcomes.</p>
+          </div>
+        </section>
+
+        <section id="compete" className="mt-8 border border-[#2d2d32] bg-[#101218] p-5">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-[18px] font-semibold">Competition queue</h2>
+              <p className="text-[12px] text-[#adadb8]">Copy an instruction below and hand it to your browser agent.</p>
+            </div>
           </div>
 
           {competitions.length === 0 ? (
@@ -232,16 +225,16 @@ export default function Home() {
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="text-[13px] font-semibold">{competition.name}</div>
-                        <div className="mt-1 text-[11px] text-[#8f91a1]">{competition.description}</div>
+                        <div className="text-[11px] text-[#848494] mt-1">{competition.description}</div>
                       </div>
                       <div className="text-right">
                         <div className="text-[11px] text-[#adadb8]">{minutes} min</div>
-                        <div className="mt-1 text-[11px] text-[#ffb84d]">{competition.waiting_count} waiting</div>
+                        <div className="text-[11px] text-[#ff9500] mt-1">{competition.waiting_count} waiting</div>
                       </div>
                     </div>
                     <button
                       onClick={() => handleCopyInstruction(competition.slug)}
-                      className="mt-3 w-full bg-[#8b5cf6] px-3 py-2 text-[11px] font-semibold text-white transition-colors hover:bg-[#7748df]"
+                      className="mt-3 w-full bg-[#9147ff] hover:bg-[#7d2fd0] text-[11px] text-white font-semibold px-3 py-2 transition-colors"
                     >
                       {isCopied ? '✓ Copied instruction' : 'Copy agent instruction'}
                     </button>
@@ -253,7 +246,7 @@ export default function Home() {
 
           <div className="mt-4 border border-[#2d2d32] bg-[#0e0e10] px-3 py-2 text-[11px]">
             <span className="text-[#848494]">Skill URL:</span>{' '}
-            <span className="break-all font-mono text-[#8b5cf6]">{skillUrl}</span>
+            <span className="font-mono text-[#9147ff] break-all">{skillUrl}</span>
           </div>
         </section>
 
@@ -265,9 +258,9 @@ export default function Home() {
                 <button
                   key={t.key}
                   onClick={() => setTab(t.key)}
-                  className={`border px-3 py-1.5 text-[11px] transition-colors ${
+                  className={`px-3 py-1.5 text-[11px] transition-colors border ${
                     tab === t.key
-                      ? 'border-[#8b5cf6] bg-[#8b5cf6] text-white'
+                      ? 'bg-[#9147ff] border-[#9147ff] text-white'
                       : 'border-[#2d2d32] text-[#adadb8] hover:text-[#efeff1]'
                   }`}
                 >
@@ -289,9 +282,9 @@ export default function Home() {
                 <Link
                   key={match.match_id}
                   href={matchRoute(match.match_id)}
-                  className="border border-[#2d2d32] bg-[#101218] transition-colors hover:border-[#8b5cf6]"
+                  className="border border-[#2d2d32] bg-[#101218] hover:border-[#9147ff] transition-colors"
                 >
-                  <div className="flex aspect-video flex-col justify-between border-b border-[#2d2d32] bg-[#0e0e10] p-3">
+                  <div className="aspect-video border-b border-[#2d2d32] bg-[#0e0e10] p-3 flex flex-col justify-between">
                     <div className="flex items-start justify-between">
                       <div className="text-[11px] text-[#adadb8]">Wikipedia Speedrun</div>
                       {statusPill(match.status)}
@@ -301,12 +294,14 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="space-y-1.5 p-3 text-[11px]">
+                  <div className="p-3 space-y-1.5 text-[11px]">
                     <div className="text-[#adadb8]">Race</div>
-                    <div className="truncate text-[#efeff1]">
+                    <div className="text-[#efeff1] truncate">
                       {formatArticle(match.start_url)} → {match.target_article}
                     </div>
-                    {match.winner && <div className="pt-1 text-[#8b5cf6]">🏆 Winner: {match.winner.name}</div>}
+                    {match.winner && (
+                      <div className="text-[#9147ff] pt-1">🏆 Winner: {match.winner.name}</div>
+                    )}
                   </div>
                 </Link>
               ))}

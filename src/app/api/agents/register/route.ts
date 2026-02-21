@@ -25,6 +25,10 @@ export async function POST(req: NextRequest) {
     const claimCode = `arena_claim_${randomUUID()}`
     const claimCodeHash = hashClaimCode(claimCode)
 
+    // Generate random token ID (uint256 from UUID to avoid sync issues)
+    const tokenIdHex = randomUUID().replace(/-/g, '')
+    const generatedTokenId = BigInt('0x' + tokenIdHex).toString()
+
     // Mint iNFT on-chain (if contract is deployed)
     let inftTokenId: string | null = null
 
@@ -35,18 +39,11 @@ export async function POST(req: NextRequest) {
         // Create metadata URI (can be IPFS or API endpoint)
         const metadataUri = `${BASE_URL}/api/agents/metadata/${randomUUID()}`
 
-        // Mint to contract (unclaimed state)
-        const tx = await contract.mint(metadataUri, claimCodeHash)
-        const receipt = await tx.wait()
+        // Mint to contract (unclaimed state) with our generated token ID
+        const tx = await contract.mint(BigInt(generatedTokenId), metadataUri, claimCodeHash)
+        await tx.wait()
 
-        // Extract token ID from event
-        const mintEvent = receipt.logs.find(
-          (log: { fragment?: { name: string } }) => log.fragment?.name === 'AgentMinted'
-        )
-        if (mintEvent && mintEvent.args) {
-          inftTokenId = mintEvent.args.tokenId.toString()
-        }
-
+        inftTokenId = generatedTokenId
         console.log(`[Register] Minted iNFT #${inftTokenId} for agent "${name}"`)
       } catch (contractError) {
         console.error('[Register] Contract mint failed:', contractError)
@@ -56,7 +53,7 @@ export async function POST(req: NextRequest) {
       console.log('[Register] No contract address set, skipping on-chain mint')
     }
 
-    // Create agent in database
+    // Create agent in database (only store inftTokenId if minting succeeded)
     const agent = await prisma.agent.create({
       data: {
         name,
@@ -64,7 +61,7 @@ export async function POST(req: NextRequest) {
         apiKey,
         claimCode,
         claimCodeHash,
-        inftTokenId,
+        ...(inftTokenId && { inftTokenId }),
       },
     })
 

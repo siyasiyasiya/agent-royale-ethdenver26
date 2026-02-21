@@ -16,12 +16,20 @@ app.prepare().then(() => {
     handle(req, res, parsedUrl)
   })
 
-  // Initialize socket.io
+  // Initialize socket.io with Railway-compatible settings
   const io = new Server(httpServer, {
     cors: {
       origin: '*', // Allow all origins for hackathon
       methods: ['GET', 'POST'],
+      credentials: true,
     },
+    // Explicitly enable both transports for Railway
+    transports: ['websocket', 'polling'],
+    // Allow upgrades from polling to websocket
+    allowUpgrades: true,
+    // Increase ping timeout for slow connections
+    pingTimeout: 60000,
+    pingInterval: 25000,
   })
 
   // Store io instance globally so API routes can access it
@@ -29,12 +37,16 @@ app.prepare().then(() => {
 
   // Socket.io connection handling
   io.on('connection', (socket) => {
-    console.log('Spectator connected:', socket.id)
+    console.log('[Socket.io] Client connected:', socket.id)
 
     // Spectator joins a match room to receive frames
     socket.on('join_match', (matchId) => {
       socket.join(`match:${matchId}`)
-      console.log(`Socket ${socket.id} joined match:${matchId}`)
+      const room = io.sockets.adapter.rooms.get(`match:${matchId}`)
+      console.log(`[Socket.io] ${socket.id} joined match:${matchId} (${room?.size || 0} total in room)`)
+
+      // Send confirmation back to client
+      socket.emit('joined', { matchId, success: true })
     })
 
     // Spectator leaves a match room

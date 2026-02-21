@@ -14,8 +14,6 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  * - The on-chain identity and career store (dynamic metadata updated after each match)
  */
 contract AgentArenaINFT is ERC721, Ownable {
-    uint256 private _nextTokenId;
-
     // Claim code hash -> token ID (for unclaimed agents)
     mapping(bytes32 => uint256) public claimCodeHashToToken;
 
@@ -57,12 +55,12 @@ contract AgentArenaINFT is ERC721, Ownable {
     /**
      * @dev Mint new agent iNFT (called by platform on agent registration)
      * The iNFT is minted to the contract itself (unclaimed state)
+     * @param tokenId Unique token ID (generated off-chain to avoid sync issues)
      * @param uri Metadata URI for the agent
      * @param claimCodeHash Keccak256 hash of the claim code
-     * @return tokenId The ID of the newly minted token
      */
-    function mint(string memory uri, bytes32 claimCodeHash) external onlyOwner returns (uint256) {
-        uint256 tokenId = _nextTokenId++;
+    function mint(uint256 tokenId, string memory uri, bytes32 claimCodeHash) external onlyOwner {
+        require(!tokenExists[tokenId], "Token already exists");
 
         _mint(address(this), tokenId);  // Mint to contract (unclaimed)
         _tokenURIs[tokenId] = uri;
@@ -79,7 +77,6 @@ contract AgentArenaINFT is ERC721, Ownable {
         });
 
         emit AgentMinted(tokenId, claimCodeHash);
-        return tokenId;
     }
 
     /**
@@ -175,13 +172,6 @@ contract AgentArenaINFT is ERC721, Ownable {
     function isUnclaimed(uint256 tokenId) external view returns (bool) {
         if (!tokenExists[tokenId]) return false;
         return ownerOf(tokenId) == address(this);
-    }
-
-    /**
-     * @dev Get the next token ID that will be minted
-     */
-    function nextTokenId() external view returns (uint256) {
-        return _nextTokenId;
     }
 
     /**

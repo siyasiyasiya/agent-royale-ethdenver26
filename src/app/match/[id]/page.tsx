@@ -10,6 +10,14 @@ interface AgentFrame {
   currentUrl: string
   clickCount: number
   timestamp: number
+  thought?: string
+}
+
+interface ThoughtEntry {
+  id: string
+  thought: string
+  article: string
+  timestamp: number
 }
 
 interface OracleVerdict {
@@ -89,6 +97,40 @@ function Timer({ endsAt }: { endsAt: string | null }) {
   )
 }
 
+function ReasoningPanel({ thoughts, agentName }: { thoughts: ThoughtEntry[]; agentName: string }) {
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (panelRef.current) {
+      panelRef.current.scrollTop = panelRef.current.scrollHeight
+    }
+  }, [thoughts])
+
+  return (
+    <div className="h-[180px] bg-[#0e0e10] border-t border-[#2d2d32] flex flex-col">
+      <div className="px-3 py-1.5 border-b border-[#2d2d32] flex items-center gap-2">
+        <span className="text-[10px] text-[#9147ff] font-semibold uppercase tracking-wide">AI Reasoning</span>
+        <span className="text-[10px] text-[#848494]">{agentName}</span>
+      </div>
+      <div ref={panelRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
+        {thoughts.length === 0 ? (
+          <div className="text-[11px] text-[#848494] italic">Waiting for agent thoughts...</div>
+        ) : (
+          thoughts.map((entry) => (
+            <div key={entry.id} className="text-[11px]">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-[#9147ff] text-[10px]">→</span>
+                <span className="text-[#adadb8] text-[10px]">{entry.article}</span>
+              </div>
+              <div className="text-[#efeff1] pl-4 leading-relaxed">&ldquo;{entry.thought}&rdquo;</div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
 function StreamPanel({
   agent,
   frame,
@@ -102,7 +144,7 @@ function StreamPanel({
 }) {
   if (!agent) {
     return (
-      <div className="flex-1 bg-[#0e0e10] flex flex-col items-center justify-center gap-3">
+      <div className="absolute inset-0 bg-[#0e0e10] flex flex-col items-center justify-center gap-3">
         <div className="w-8 h-8 rounded-full border-2 border-[#2d2d32] flex items-center justify-center">
           <span className="text-[#848494] text-[16px]">?</span>
         </div>
@@ -118,7 +160,7 @@ function StreamPanel({
     : '...'
 
   return (
-    <div className={`flex-1 bg-[#0e0e10] relative ${isWinner ? 'ring-2 ring-[#9147ff]' : ''}`}>
+    <div className={`absolute inset-0 bg-[#0e0e10] ${isWinner ? 'ring-2 ring-[#9147ff]' : ''}`}>
       {/* Stream */}
       <div className="w-full h-full flex items-center justify-center">
         {frame?.frame ? (
@@ -168,6 +210,7 @@ export default function MatchPage() {
 
   const [match, setMatch] = useState<MatchData | null>(null)
   const [frames, setFrames] = useState<Record<string, AgentFrame>>({})
+  const [thoughts, setThoughts] = useState<Record<string, ThoughtEntry[]>>({})
   const [error, setError] = useState<string | null>(null)
   const [winnerData, setWinnerData] = useState<{ name: string; agent_id: string } | null>(null)
   const [oracleReasoning, setOracleReasoning] = useState<string | null>(null)
@@ -214,6 +257,7 @@ export default function MatchPage() {
     fetchMatch()
   }, [fetchMatch])
 
+  // Poll for match updates when waiting for opponent
   useEffect(() => {
     if (pollingRef.current) {
       clearInterval(pollingRef.current)
@@ -229,12 +273,167 @@ export default function MatchPage() {
     }
   }, [match?.status, fetchMatch])
 
+  // Polling fallback for frames (when Socket.io doesn't work in production)
+  const framePollingRef = useRef<NodeJS.Timeout | null>(null)
+  const lastFrameTimestampRef = useRef<Record<string, number>>({})
+
   useEffect(() => {
-    const socket = io()
+    if (framePollingRef.current) {
+      clearInterval(framePollingRef.current)
+      framePollingRef.current = null
+    }
+
+    // Only poll when match is active
+    if (match?.status !== 'active') return
+
+    const pollFrames = async () => {
+      try {
+        const res = await fetch(`/api/matches/${matchId}`)
+        if (!res.ok) return
+        const data = await res.json()
+
+        // Update frames from API response
+        if (data.frames) {
+          if (data.frames.agent1 && data.agent1) {
+            const agentId = data.agent1.agent_id
+            const newTimestamp = data.frames.agent1.timestamp || 0
+            const lastTimestamp = lastFrameTimestampRef.current[agentId] || 0
+
+            if (newTimestamp > lastTimestamp) {
+              lastFrameTimestampRef.current[agentId] = newTimestamp
+              setFrames(prev => ({
+                ...prev,
+                [agentId]: {
+                  agentId,
+                  frame: data.frames.agent1.frame,
+                  currentUrl: data.frames.agent1.current_url,
+                  clickCount: data.frames.agent1.click_count,
+                  timestamp: newTimestamp,
+                  thought: data.frames.agent1.thought,
+                },
+              }))
+
+              // Handle thought
+              const thoughtText = data.frames.agent1.thought?.trim()
+              if (thoughtText) {
+                const article = data.frames.agent1.current_url
+                  ? decodeURIComponent(data.frames.agent1.current_url.split('/wiki/')[1] || '').replace(/_/g, ' ')
+                  : 'Unknown'
+                setThoughts(prev => {
+                  const agentThoughts = prev[agentId] || []
+                  const lastThought = agentThoughts[agentThoughts.length - 1]
+                  if (lastThought?.thought === thoughtText && lastThought?.article === article) {
+                    return prev
+                  }
+                  return {
+                    ...prev,
+                    [agentId]: [...agentThoughts, { id: `${agentId}-${newTimestamp}`, thought: thoughtText, article, timestamp: newTimestamp }],
+                  }
+                })
+              }
+            }
+          }
+
+          if (data.frames.agent2 && data.agent2) {
+            const agentId = data.agent2.agent_id
+            const newTimestamp = data.frames.agent2.timestamp || 0
+            const lastTimestamp = lastFrameTimestampRef.current[agentId] || 0
+
+            if (newTimestamp > lastTimestamp) {
+              lastFrameTimestampRef.current[agentId] = newTimestamp
+              setFrames(prev => ({
+                ...prev,
+                [agentId]: {
+                  agentId,
+                  frame: data.frames.agent2.frame,
+                  currentUrl: data.frames.agent2.current_url,
+                  clickCount: data.frames.agent2.click_count,
+                  timestamp: newTimestamp,
+                  thought: data.frames.agent2.thought,
+                },
+              }))
+
+              // Handle thought
+              const thoughtText = data.frames.agent2.thought?.trim()
+              if (thoughtText) {
+                const article = data.frames.agent2.current_url
+                  ? decodeURIComponent(data.frames.agent2.current_url.split('/wiki/')[1] || '').replace(/_/g, ' ')
+                  : 'Unknown'
+                setThoughts(prev => {
+                  const agentThoughts = prev[agentId] || []
+                  const lastThought = agentThoughts[agentThoughts.length - 1]
+                  if (lastThought?.thought === thoughtText && lastThought?.article === article) {
+                    return prev
+                  }
+                  return {
+                    ...prev,
+                    [agentId]: [...agentThoughts, { id: `${agentId}-${newTimestamp}`, thought: thoughtText, article, timestamp: newTimestamp }],
+                  }
+                })
+              }
+            }
+          }
+        }
+
+        // Update match status
+        if (data.status === 'complete' || data.status === 'judging') {
+          setMatch(data)
+          if (data.winner) {
+            setWinnerData({ agent_id: data.winner.agent_id, name: data.winner.name })
+          }
+          if (data.status === 'judging') {
+            setJudging(true)
+          }
+        }
+      } catch (err) {
+        console.error('[Polling] Error fetching frames:', err)
+      }
+    }
+
+    // Poll every 500ms for smooth frame updates
+    framePollingRef.current = setInterval(pollFrames, 500)
+    // Initial poll
+    pollFrames()
+
+    return () => {
+      if (framePollingRef.current) {
+        clearInterval(framePollingRef.current)
+        framePollingRef.current = null
+      }
+    }
+  }, [match?.status, matchId])
+
+  useEffect(() => {
+    // Connect to same origin with explicit settings for Railway
+    const socket = io({
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    })
     socketRef.current = socket
 
     socket.on('connect', () => {
+      console.log('[Socket] Connected:', socket.id)
+      console.log('[Socket] Joining match:', matchId)
       socket.emit('join_match', matchId)
+    })
+
+    socket.on('joined', (data) => {
+      console.log('[Socket] Successfully joined room:', data)
+    })
+
+    socket.on('connect_error', (err) => {
+      console.error('[Socket] Connection error:', err.message)
+    })
+
+    socket.on('disconnect', (reason) => {
+      console.log('[Socket] Disconnected:', reason)
+    })
+
+    // Debug: log all incoming events
+    socket.onAny((event, ...args) => {
+      console.log('[Socket] Event received:', event, args.length > 0 ? '(with data)' : '')
     })
 
     socket.on('match_start', async () => {
@@ -249,12 +448,41 @@ export default function MatchPage() {
       setJudging(true)
     })
 
-    socket.on('frame', (data: AgentFrame & { matchId: string }) => {
+    socket.on('frame', (data: AgentFrame & { matchId: string; thought?: string }) => {
       if (data.matchId === matchId) {
         setFrames(prev => ({
           ...prev,
           [data.agentId]: data,
         }))
+
+        // Accumulate thoughts if present
+        const thoughtText = data.thought?.trim()
+        if (thoughtText) {
+          const article = data.currentUrl
+            ? decodeURIComponent(data.currentUrl.split('/wiki/')[1] || '').replace(/_/g, ' ')
+            : 'Unknown'
+
+          setThoughts(prev => {
+            const agentThoughts = prev[data.agentId] || []
+            // Avoid duplicate thoughts (same thought for same article)
+            const lastThought = agentThoughts[agentThoughts.length - 1]
+            if (lastThought?.thought === thoughtText && lastThought?.article === article) {
+              return prev
+            }
+            return {
+              ...prev,
+              [data.agentId]: [
+                ...agentThoughts,
+                {
+                  id: `${data.agentId}-${data.timestamp}`,
+                  thought: thoughtText,
+                  article,
+                  timestamp: data.timestamp,
+                },
+              ],
+            }
+          })
+        }
 
         setMatch(prev => {
           if (!prev) return prev
@@ -336,13 +564,6 @@ export default function MatchPage() {
 
   const isWaiting = match.status === 'waiting_for_opponent'
   const isComplete = match.status === 'complete'
-  const bothReady = !!(
-    match.agent1 && match.agent2 &&
-    frames[match.agent1.agent_id] && frames[match.agent2.agent_id]
-  )
-
-  const matchActiveForMs = match.started_at ? Date.now() - new Date(match.started_at).getTime() : 0
-  const showConnectingOverlay = match.status === 'active' && !bothReady && matchActiveForMs < 30_000
 
   const apiBase = typeof window !== 'undefined' ? window.location.origin : ''
   const skillUrl = `${apiBase}/skill.md`
@@ -395,48 +616,40 @@ export default function MatchPage() {
             </div>
           )}
 
-          {/* Waiting for both agents overlay */}
-          {showConnectingOverlay && (
-            <div className="absolute inset-0 bg-[#0e0e10] z-10 flex items-center justify-center">
-              <div className="text-center space-y-3">
-                <div className="w-6 h-6 border-2 border-[#9147ff] border-t-transparent rounded-full animate-spin mx-auto" />
-                <div className="text-[#adadb8] text-[13px] font-medium">Both agents connecting...</div>
-                <div className="text-[#848494] text-[11px] space-y-1">
-                  <div>
-                    {match.agent1 && frames[match.agent1.agent_id] ? '✓' : '○'}{' '}
-                    <span className={match.agent1 && frames[match.agent1.agent_id] ? 'text-[#9147ff]' : ''}>
-                      {match.agent1?.name || 'Agent 1'}
-                    </span>
-                  </div>
-                  <div>
-                    {match.agent2 && frames[match.agent2.agent_id] ? '✓' : '○'}{' '}
-                    <span className={match.agent2 && frames[match.agent2.agent_id] ? 'text-[#9147ff]' : ''}>
-                      {match.agent2?.name || 'Agent 2'}
-                    </span>
-                  </div>
-                </div>
-              </div>
+          {/* Agent 1 column */}
+          <div className="flex-1 flex flex-col min-w-0">
+            <div className="flex-1 relative">
+              <StreamPanel
+                agent={match.agent1}
+                frame={match.agent1 ? frames[match.agent1.agent_id] : null}
+                isWinner={winnerData?.agent_id === match.agent1?.agent_id}
+                matchStatus={match.status}
+              />
             </div>
-          )}
-
-          {/* Agent 1 stream */}
-          <StreamPanel
-            agent={match.agent1}
-            frame={match.agent1 ? frames[match.agent1.agent_id] : null}
-            isWinner={winnerData?.agent_id === match.agent1?.agent_id}
-            matchStatus={match.status}
-          />
+            <ReasoningPanel
+              thoughts={match.agent1 ? thoughts[match.agent1.agent_id] || [] : []}
+              agentName={match.agent1?.name || 'Agent 1'}
+            />
+          </div>
 
           {/* Divider */}
           <div className="w-[2px] bg-[#2d2d32]" />
 
-          {/* Agent 2 stream */}
-          <StreamPanel
-            agent={match.agent2}
-            frame={match.agent2 ? frames[match.agent2.agent_id] : null}
-            isWinner={winnerData?.agent_id === match.agent2?.agent_id}
-            matchStatus={match.status}
-          />
+          {/* Agent 2 column */}
+          <div className="flex-1 flex flex-col min-w-0">
+            <div className="flex-1 relative">
+              <StreamPanel
+                agent={match.agent2}
+                frame={match.agent2 ? frames[match.agent2.agent_id] : null}
+                isWinner={winnerData?.agent_id === match.agent2?.agent_id}
+                matchStatus={match.status}
+              />
+            </div>
+            <ReasoningPanel
+              thoughts={match.agent2 ? thoughts[match.agent2.agent_id] || [] : []}
+              agentName={match.agent2?.name || 'Agent 2'}
+            />
+          </div>
         </div>
       </div>
 

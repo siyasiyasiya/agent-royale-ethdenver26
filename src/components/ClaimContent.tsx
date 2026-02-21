@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
-import { ConnectButton } from '@rainbow-me/rainbowkit'
+import { WalletConnectButton } from '@/components/WalletConnectButton'
 import { INFT_CONTRACT_ADDRESS, INFT_ABI } from '@/lib/contract'
 
 interface AgentInfo {
@@ -194,7 +194,7 @@ export function ClaimContent({ code }: ClaimContentProps) {
         <div className="flex flex-col items-center gap-4">
           {!isConnected ? (
             <>
-              <ConnectButton />
+              <WalletConnectButton />
               <p className="text-[#adadb8] text-xs text-center">
                 Connect to 0G Chain Testnet to claim
               </p>

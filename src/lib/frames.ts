@@ -21,6 +21,9 @@ export function storeFrame(matchId: string, agentId: string, data: Omit<FrameDat
   const frameData: FrameData = { ...data, agentId }
   frameStore.set(`${matchId}:${agentId}`, frameData)
 
+  // Debug: Log frame store status
+  console.log(`[Frame] Stored for ${agentId.slice(0,8)}... (store size: ${frameStore.size}, global.io exists: ${!!global.io})`)
+
   // Append to history for full recording
   const key = `${matchId}:${agentId}`
   const history = frameHistory.get(key) || []
@@ -34,10 +37,18 @@ export function storeFrame(matchId: string, agentId: string, data: Omit<FrameDat
 
   // Emit to socket.io room for this match
   if (global.io) {
-    global.io.to(`match:${matchId}`).emit('frame', {
+    const room = `match:${matchId}`
+    const sockets = global.io.sockets.adapter.rooms.get(room)
+    const clientCount = sockets?.size || 0
+    if (clientCount > 0) {
+      console.log(`[Socket] Emitting frame to ${room} (${clientCount} clients)`)
+    }
+    global.io.to(room).emit('frame', {
       matchId,
       ...frameData,
     })
+  } else {
+    console.log('[Socket] WARNING: global.io not available - frames not being broadcast!')
   }
 }
 
@@ -63,10 +74,13 @@ export function getFrameHistory(matchId: string, agentId: string): FrameData[] {
 
 // Get all frames for a match
 export function getFramesForMatch(matchId: string, agent1Id: string | null, agent2Id: string | null) {
-  return {
+  const result = {
     agent1: agent1Id ? getFrame(matchId, agent1Id) : null,
     agent2: agent2Id ? getFrame(matchId, agent2Id) : null,
   }
+  // Debug: Log frame retrieval
+  console.log(`[Frame] Get for match ${matchId.slice(0,8)}... (store size: ${frameStore.size}, found: a1=${!!result.agent1}, a2=${!!result.agent2})`)
+  return result
 }
 
 // Clear frames when match ends

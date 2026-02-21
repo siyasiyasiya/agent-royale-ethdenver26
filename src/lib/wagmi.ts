@@ -1,4 +1,5 @@
-import { getDefaultConfig } from '@rainbow-me/rainbowkit'
+import { createConfig, http } from 'wagmi'
+import { injected } from 'wagmi/connectors'
 import { defineChain } from 'viem'
 
 // 0G Galileo Testnet (V3, chain 16602)
@@ -19,9 +20,11 @@ export const zgTestnet = defineChain({
   testnet: true,
 })
 
-export const config = getDefaultConfig({
-  appName: 'Agent Arena',
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'demo',
+export const config = createConfig({
   chains: [zgTestnet],
+  connectors: [injected()],
+  transports: {
+    [zgTestnet.id]: http('https://evmrpc-testnet.0g.ai'),
+  },
   ssr: true,
 })

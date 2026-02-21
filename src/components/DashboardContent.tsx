@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAccount } from 'wagmi'
-import { ConnectButton } from '@rainbow-me/rainbowkit'
+import { WalletConnectButton } from '@/components/WalletConnectButton'
 
 interface AgentStats {
   matches_played: number
@@ -159,7 +159,7 @@ export function DashboardContent() {
           <p className="text-[#adadb8] mb-8">
             Connect your wallet to see agents you own and manage their performance.
           </p>
-          <ConnectButton />
+          <WalletConnectButton />
         </div>
       </div>
     )
@@ -176,7 +176,7 @@ export function DashboardContent() {
               {address?.slice(0, 6)}...{address?.slice(-4)}
             </p>
           </div>
-          <ConnectButton />
+          <WalletConnectButton />
         </div>
 
         {/* Loading State */}

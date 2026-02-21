@@ -18,7 +18,6 @@
     "@0glabs/0g-serving-broker": "^0.7.1",
     "@hashgraph/sdk": "^2.80.0",
     "@prisma/client": "^6.19.2",
-    "@rainbow-me/rainbowkit": "^2.2.10",
     "@tanstack/react-query": "^5.90.21",
     "axios": "^1.13.5",
     "dotenv": "^17.3.1",
