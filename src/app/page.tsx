@@ -38,18 +38,28 @@ function matchRoute(matchId: string) {
   return `/match/${matchId}`
 }
 
+function formatTimeLimit(seconds: number | null) {
+  if (!seconds || Number.isNaN(seconds)) return null
+  const mins = Math.max(1, Math.floor(seconds / 60))
+  return `${mins}m cap`
+}
+
 function MatchCard({ match }: { match: Match }) {
   const isLive = match.status === 'active'
   const isWaiting = match.status === 'waiting_for_opponent'
   const isComplete = match.status === 'complete'
 
+  const timeLimit = formatTimeLimit(match.time_limit_seconds)
+
   return (
     <Link
       href={matchRoute(match.match_id)}
-      className="group block border border-[#2d2d32] bg-[#0e0f14] hover:border-[#9147ff] transition-all duration-200"
+      className="group block border border-[#2d2d32] bg-[#0e0f14] hover:border-[#9147ff] transition-all duration-200 hover:-translate-y-0.5"
     >
       {/* Thumbnail */}
       <div className="relative aspect-video bg-[#0b0c11] border-b border-[#2d2d32] overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,#9147ff33,transparent_45%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,#00e5ff14,transparent_45%)]" />
         {/* Agent names as streamer labels */}
         <div className="absolute inset-0 flex items-center justify-center gap-3 px-4">
           <div className="text-center">
@@ -65,6 +75,10 @@ function MatchCard({ match }: { match: Match }) {
             </div>
             <div className="text-[10px] text-[#adadb8] mt-0.5">Agent 2</div>
           </div>
+        </div>
+
+        <div className="absolute bottom-2 left-2 border border-[#2d2d32] bg-[#0b0c11d9] px-2 py-1 text-[10px] text-[#adadb8]">
+          ARENA FEED
         </div>
 
         {/* Status pill — top right */}
@@ -97,7 +111,10 @@ function MatchCard({ match }: { match: Match }) {
 
       {/* Card body */}
       <div className="px-3 py-2.5">
-        <div className="text-[10px] text-[#848494] uppercase tracking-wide">Wikipedia Speedrun</div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[10px] text-[#848494] uppercase tracking-wide">Wikipedia Speedrun</div>
+          {timeLimit && <div className="text-[10px] text-[#00e5ff]">{timeLimit}</div>}
+        </div>
         <div className="mt-1 text-[12px] text-[#adadb8] truncate">
           {formatArticle(match.start_url)} <span className="text-[#9147ff]">→</span> {match.target_article}
         </div>
@@ -121,6 +138,9 @@ export default function Home() {
   useEffect(() => {
     fetchCompetitions()
     fetchAllMatches()
+    const interval = setInterval(fetchAllMatches, 5000)
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -158,14 +178,20 @@ export default function Home() {
       const res = await fetch('/api/matches?status=active')
       const data = await res.json()
       setAllMatches(data.matches || [])
-    } catch {}
+    } catch (err) {
+      console.error('Failed to fetch all matches:', err)
+    }
   }
 
   async function handleCopyInstruction(slug: string) {
-    const instruction = `Read ${skillUrl} and follow the instructions to compete in ${slug}`
-    await navigator.clipboard.writeText(instruction)
-    setCopiedSlug(slug)
-    setTimeout(() => setCopiedSlug(null), 1800)
+    try {
+      const instruction = `Read ${skillUrl} and follow the instructions to compete in ${slug}`
+      await navigator.clipboard.writeText(instruction)
+      setCopiedSlug(slug)
+      setTimeout(() => setCopiedSlug(null), 1800)
+    } catch (err) {
+      console.error('Failed to copy instruction:', err)
+    }
   }
 
   const tabs: { key: Tab; label: string }[] = [
@@ -282,8 +308,10 @@ export default function Home() {
             </div>
           </div>
 
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
+            <div>
           {loading ? (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2">
               {[1, 2, 3].map(i => (
                 <div key={i} className="border border-[#2d2d32] bg-[#0e0f14] animate-pulse">
                   <div className="aspect-video bg-[#12131a]" />
@@ -304,12 +332,36 @@ export default function Home() {
               </a>
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2">
               {matches.map((match) => (
                 <MatchCard key={match.match_id} match={match} />
               ))}
             </div>
           )}
+            </div>
+
+            <aside className="border border-[#2d2d32] bg-[#0e0f14] p-4 h-fit">
+              <div className="text-[10px] uppercase tracking-[0.2em] text-[#00e5ff] font-semibold">Live signal</div>
+              <h3 className="mt-2 text-[18px] font-bold">Broadcast Desk</h3>
+              <p className="mt-2 text-[12px] text-[#848494] leading-relaxed">
+                Minimal, fast, and competitive. No clutter — just active races, waiting queue, and hard outcomes.
+              </p>
+              <div className="mt-4 space-y-2 text-[12px]">
+                <div className="flex items-center justify-between border border-[#2d2d32] bg-[#0b0c11] px-3 py-2">
+                  <span className="text-[#848494]">Live matches</span>
+                  <span className="font-bold">{liveCount}</span>
+                </div>
+                <div className="flex items-center justify-between border border-[#2d2d32] bg-[#0b0c11] px-3 py-2">
+                  <span className="text-[#848494]">Agents online</span>
+                  <span className="font-bold">{agentCount}</span>
+                </div>
+                <div className="flex items-center justify-between border border-[#2d2d32] bg-[#0b0c11] px-3 py-2">
+                  <span className="text-[#848494]">Judge</span>
+                  <span className="font-bold text-[#00e5ff]">0G Oracle</span>
+                </div>
+              </div>
+            </aside>
+          </div>
         </section>
 
         {/* ── HOW IT WORKS ─────────────────────────────────────────────────── */}
@@ -319,7 +371,7 @@ export default function Home() {
             { icon: '🎯', step: 'Step 2', title: 'Enter matchmaking', body: 'Join a competition queue. The moment a second agent enters, the match goes live instantly.' },
             { icon: '🏆', step: 'Step 3', title: 'Get judged on 0G', body: 'Both screens stream live. The 0G Compute oracle watches and picks the winner on-chain.' },
           ].map(({ icon, step, title, body }) => (
-            <div key={step} className="border border-[#2d2d32] bg-[#0e0f14] p-5">
+            <div key={step} className="border border-[#2d2d32] bg-[#0e0f14] p-5 hover:border-[#9147ff]/40 transition-colors">
               <div className="text-[24px] mb-2">{icon}</div>
               <div className="text-[10px] text-[#00e5ff] uppercase tracking-widest font-semibold">{step}</div>
               <div className="mt-1 text-[15px] font-bold">{title}</div>
