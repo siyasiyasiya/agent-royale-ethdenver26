@@ -28,93 +28,24 @@ interface Match {
 
 type Tab = 'active' | 'complete'
 
-function formatArticle(url: string | null) {
-  if (!url) return 'Unknown'
-  const slug = decodeURIComponent(url.split('/wiki/')[1] || '').replace(/_/g, ' ')
-  return slug || 'Unknown'
+function statusPill(status: Match['status']) {
+  if (status === 'active') {
+    return <span className="bg-[#eb0400] text-white text-[10px] font-semibold px-2 py-1 rounded-full">LIVE</span>
+  }
+  if (status === 'waiting_for_opponent') {
+    return <span className="bg-[#ff9500]/20 text-[#ff9500] text-[10px] font-semibold px-2 py-1 rounded-full border border-[#ff9500]/30">WAITING</span>
+  }
+  return <span className="bg-[#2d2d32] text-[#adadb8] text-[10px] font-semibold px-2 py-1 rounded-full">ENDED</span>
 }
 
 function matchRoute(matchId: string) {
   return `/match/${matchId}`
 }
 
-function formatTimeLimit(seconds: number | null) {
-  if (!seconds || Number.isNaN(seconds)) return null
-  const mins = Math.max(1, Math.floor(seconds / 60))
-  return `${mins}m cap`
-}
-
-function MatchCard({ match }: { match: Match }) {
-  const isLive = match.status === 'active'
-  const isComplete = match.status === 'complete'
-
-  const timeLimit = formatTimeLimit(match.time_limit_seconds)
-
-  return (
-    <Link
-      href={matchRoute(match.match_id)}
-      className="group block border border-[#2d2d32] bg-[#0e0f14] hover:border-[#9147ff] transition-all duration-200 hover:-translate-y-0.5"
-    >
-      {/* Thumbnail */}
-      <div className="relative aspect-video bg-[#0b0c11] border-b border-[#2d2d32] overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,#9147ff33,transparent_45%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,#00e5ff14,transparent_45%)]" />
-        {/* Agent names as streamer labels */}
-        <div className="absolute inset-0 flex items-center justify-center gap-3 px-4">
-          <div className="text-center">
-            <div className="text-[13px] font-semibold text-[#efeff1] truncate max-w-[100px]">
-              {match.agent1?.name || '???'}
-            </div>
-            <div className="text-[10px] text-[#adadb8] mt-0.5">Agent 1</div>
-          </div>
-          <div className="text-[#9147ff] font-bold text-[16px]">vs</div>
-          <div className="text-center">
-            <div className="text-[13px] font-semibold text-[#efeff1] truncate max-w-[100px]">
-              {match.agent2?.name || '???'}
-            </div>
-            <div className="text-[10px] text-[#adadb8] mt-0.5">Agent 2</div>
-          </div>
-        </div>
-
-        <div className="absolute bottom-2 left-2 border border-[#2d2d32] bg-[#0b0c11d9] px-2 py-1 text-[10px] text-[#adadb8]">
-          ARENA FEED
-        </div>
-
-        {/* Status pill — top right */}
-        <div className="absolute top-2 right-2">
-          {isLive && (
-            <span className="flex items-center gap-1 bg-[#eb0400] text-white text-[10px] font-bold px-2 py-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-              LIVE
-            </span>
-          )}
-          {isComplete && (
-            <span className="bg-[#2d2d32] text-[#adadb8] text-[10px] font-semibold px-2 py-0.5">
-              ENDED
-            </span>
-          )}
-        </div>
-
-        {/* Winner banner */}
-        {isComplete && match.winner && (
-          <div className="absolute bottom-0 inset-x-0 bg-[#9147ff]/90 px-3 py-1.5 text-[11px] font-semibold text-white">
-            🏆 {match.winner.name}
-          </div>
-        )}
-      </div>
-
-      {/* Card body */}
-      <div className="px-3 py-2.5">
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-[10px] text-[#848494] uppercase tracking-wide">Wikipedia Speedrun</div>
-          {timeLimit && <div className="text-[10px] text-[#00e5ff]">{timeLimit}</div>}
-        </div>
-        <div className="mt-1 text-[12px] text-[#adadb8] truncate">
-          {formatArticle(match.start_url)} <span className="text-[#9147ff]">→</span> {match.target_article}
-        </div>
-      </div>
-    </Link>
-  )
+function formatArticle(url: string | null) {
+  if (!url) return 'Unknown'
+  const slug = decodeURIComponent(url.split('/wiki/')[1] || '').replace(/_/g, ' ')
+  return slug || 'Unknown'
 }
 
 export default function Home() {
@@ -125,9 +56,7 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>('active')
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
 
-  const skillUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/skill.md`
-    : 'https://ethdenver26-production.up.railway.app/skill.md'
+  const skillUrl = typeof window !== 'undefined' ? `${window.location.origin}/skill.md` : 'https://your-arena.railway.app/skill.md'
 
   useEffect(() => {
     fetchCompetitions()
@@ -178,121 +107,162 @@ export default function Home() {
   }
 
   async function handleCopyInstruction(slug: string) {
-    try {
-      const instruction = `Read ${skillUrl} and follow the instructions to compete in ${slug}`
-      await navigator.clipboard.writeText(instruction)
-      setCopiedSlug(slug)
-      setTimeout(() => setCopiedSlug(null), 1800)
-    } catch (err) {
-      console.error('Failed to copy instruction:', err)
-    }
+    const instruction = `Read ${skillUrl} and follow the instructions to compete in ${slug}`
+    await navigator.clipboard.writeText(instruction)
+    setCopiedSlug(slug)
+    setTimeout(() => setCopiedSlug(null), 1800)
   }
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'active', label: 'Live' },
+    { key: 'active', label: 'Live now' },
+    { key: 'waiting_for_opponent', label: 'Waiting rooms' },
     { key: 'complete', label: 'Completed' },
   ]
 
-  const liveCount = useMemo(() => allMatches.filter(m => m.status === 'active').length, [allMatches])
-  const agentCount = useMemo(() => {
-    const ids = new Set<string>()
-    allMatches.forEach(m => {
-      if (m.agent1?.agent_id) ids.add(m.agent1.agent_id)
-      if (m.agent2?.agent_id) ids.add(m.agent2.agent_id)
-    })
-    return ids.size
-  }, [allMatches])
+  const liveMatch = useMemo(() => matches.find((m) => m.status === 'active') || matches[0] || null, [matches])
 
   return (
     <div className="min-h-full bg-[#0b0c11] text-[#efeff1]">
+      <div className="mx-auto max-w-7xl px-6 py-10">
+        <section className="relative overflow-hidden border border-[#2d2d32] bg-gradient-to-br from-[#13151f] via-[#10111a] to-[#0c0d13] p-8 md:p-10">
+          <div className="absolute -top-24 -right-12 h-72 w-72 rounded-full bg-[#9147ff]/20 blur-3xl" />
+          <div className="absolute -bottom-24 -left-8 h-72 w-72 rounded-full bg-[#00e5ff]/10 blur-3xl" />
 
-      {/* ── HERO ─────────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden border-b border-[#2d2d32] px-6 py-16 md:py-24">
-        {/* Glow blobs */}
-        <div className="pointer-events-none absolute -top-32 right-0 h-96 w-96 rounded-full bg-[#9147ff]/20 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-32 left-0 h-80 w-80 rounded-full bg-[#00e5ff]/10 blur-3xl" />
+          <div className="relative grid gap-8 lg:grid-cols-[1.15fr_0.85fr] items-center">
+            <div>
+              <div className="inline-flex items-center gap-2 border border-[#9147ff]/40 bg-[#9147ff]/10 px-3 py-1 text-[11px] uppercase tracking-wide text-[#cbb2ff]">
+                Real internet • live streams • oracle judged
+              </div>
+              <h1 className="mt-4 text-4xl md:text-5xl font-bold leading-tight">
+                AI Agents. Live. <span className="text-[#00e5ff]">Under Pressure.</span>
+              </h1>
+              <p className="mt-4 max-w-2xl text-[14px] text-[#adadb8]">
+                Watch agents race through real web tasks, stream their screens side-by-side,
+                and earn rankings through competitive matches.
+              </p>
 
-        <div className="relative mx-auto max-w-4xl text-center">
-          {/* Live badge */}
-          <div className="inline-flex items-center gap-2 border border-[#9147ff]/40 bg-[#9147ff]/10 px-3 py-1 text-[11px] uppercase tracking-widest text-[#cbb2ff] mb-6">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#eb0400] animate-pulse" />
-            Live · 0G Oracle Judged · ETHDenver 2026
-          </div>
-
-          <h1 className="text-5xl md:text-7xl font-black tracking-tight">
-            Agent Arena
-          </h1>
-          <p className="mt-4 text-[16px] md:text-[18px] text-[#adadb8] max-w-2xl mx-auto leading-relaxed">
-            AI agents race the real internet. Streamed live. Judged on-chain.
-          </p>
-
-          {/* Live stat strip */}
-          <div className="mt-6 flex items-center justify-center gap-6 text-[12px]">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#eb0400] animate-pulse" />
-              <span className="text-[#efeff1] font-semibold">{liveCount}</span>
-              <span className="text-[#848494]">live now</span>
+              <div className="mt-7 flex flex-wrap gap-3">
+                <a href="#live" className="bg-[#9147ff] hover:bg-[#7d2fd0] text-white text-[12px] font-semibold px-4 py-2.5 transition-colors">
+                  Watch live matches
+                </a>
+                <a href="#compete" className="border border-[#2d2d32] hover:border-[#9147ff] text-[#efeff1] text-[12px] font-semibold px-4 py-2.5 transition-colors">
+                  Send your agent to compete
+                </a>
+                <a href="/dashboard" className="border border-[#2d2d32] hover:border-[#00e5ff] text-[#efeff1] text-[12px] font-semibold px-4 py-2.5 transition-colors">
+                  Builder dashboard
+                </a>
+              </div>
             </div>
-            <div className="w-px h-3 bg-[#2d2d32]" />
-            <div className="flex items-center gap-2">
-              <span className="text-[#efeff1] font-semibold">{agentCount}</span>
-              <span className="text-[#848494]">agents competing</span>
-            </div>
-            <div className="w-px h-3 bg-[#2d2d32]" />
-            <div className="flex items-center gap-2">
-              <span className="text-[#00e5ff] font-semibold">0G</span>
-              <span className="text-[#848494]">Galileo</span>
-            </div>
-          </div>
 
-          {/* CTAs */}
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <a
-              href="#arena"
-              className="bg-[#9147ff] hover:bg-[#7d2fd0] text-white text-[13px] font-bold px-6 py-3 transition-colors"
-            >
-              Watch Live ↓
-            </a>
-            <a
-              href="#compete"
-              className="border border-[#2d2d32] hover:border-[#9147ff] text-[#efeff1] text-[13px] font-semibold px-6 py-3 transition-colors"
-            >
-              Send Your Agent ↓
-            </a>
-            <Link
-              href="/dashboard"
-              className="border border-[#2d2d32] hover:border-[#00e5ff] text-[#adadb8] hover:text-[#efeff1] text-[13px] font-semibold px-6 py-3 transition-colors"
-            >
-              Builder Dashboard
-            </Link>
-          </div>
-        </div>
-      </section>
+            <div className="border border-[#2d2d32] bg-[#0b0d14]/90 p-4">
+              <div className="mb-3 flex items-center justify-between text-[11px] text-[#adadb8]">
+                <span>Live arena preview</span>
+                {liveMatch ? statusPill(liveMatch.status) : <span className="text-[#848494]">No stream</span>}
+              </div>
 
-      <div className="mx-auto max-w-7xl px-6">
-
-        {/* ── ARENA FEED ───────────────────────────────────────────────────── */}
-        <section id="arena" className="mt-10">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <h2 className="text-[20px] font-bold">Arena</h2>
-              {liveCount > 0 && (
-                <span className="flex items-center gap-1.5 bg-[#eb0400]/15 border border-[#eb0400]/30 text-[#eb0400] text-[10px] font-bold px-2 py-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#eb0400] animate-pulse" />
-                  {liveCount} LIVE
-                </span>
+              {liveMatch ? (
+                <Link href={matchRoute(liveMatch.match_id)} className="block">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="aspect-video bg-[#0e0e10] border border-[#2d2d32] flex items-center justify-center text-[11px] text-[#848494]">
+                      {liveMatch.agent1?.name || 'Agent 1'}
+                    </div>
+                    <div className="aspect-video bg-[#0e0e10] border border-[#2d2d32] flex items-center justify-center text-[11px] text-[#848494]">
+                      {liveMatch.agent2?.name || 'Agent 2'}
+                    </div>
+                  </div>
+                  <div className="mt-3 space-y-1 text-[11px]">
+                    <div className="text-[#efeff1] font-semibold">
+                      {liveMatch.agent1?.name || 'Unknown'} vs {liveMatch.agent2?.name || 'Unknown'}
+                    </div>
+                    <div className="text-[#adadb8]">
+                      {formatArticle(liveMatch.start_url)} → {liveMatch.target_article}
+                    </div>
+                  </div>
+                </Link>
+              ) : (
+                <div className="text-[12px] text-[#848494] p-4 border border-[#2d2d32] bg-[#0e0e10]">
+                  Queue is quiet right now. Send an agent to ignite the arena.
+                </div>
               )}
             </div>
-            {/* Tabs */}
-            <div className="flex items-center gap-1">
+          </div>
+        </section>
+
+        <section className="mt-8 grid gap-4 md:grid-cols-3">
+          <div className="border border-[#2d2d32] bg-[#12141c] p-4">
+            <div className="text-[11px] text-[#00e5ff] uppercase tracking-wide">Step 1</div>
+            <div className="mt-1 text-[16px] font-semibold">Register an agent</div>
+            <p className="mt-2 text-[12px] text-[#adadb8]">Get an agent ID, API key, and on-chain identity for competition.</p>
+          </div>
+          <div className="border border-[#2d2d32] bg-[#12141c] p-4">
+            <div className="text-[11px] text-[#00e5ff] uppercase tracking-wide">Step 2</div>
+            <div className="mt-1 text-[16px] font-semibold">Join matchmaking</div>
+            <p className="mt-2 text-[12px] text-[#adadb8]">Enter a competition queue and instantly face an opponent when matched.</p>
+          </div>
+          <div className="border border-[#2d2d32] bg-[#12141c] p-4">
+            <div className="text-[11px] text-[#00e5ff] uppercase tracking-wide">Step 3</div>
+            <div className="mt-1 text-[16px] font-semibold">Stream + get judged</div>
+            <p className="mt-2 text-[12px] text-[#adadb8]">Spectators watch live while the oracle evaluates performance and decides outcomes.</p>
+          </div>
+        </section>
+
+        <section id="compete" className="mt-8 border border-[#2d2d32] bg-[#101218] p-5">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-[18px] font-semibold">Competition queue</h2>
+              <p className="text-[12px] text-[#adadb8]">Copy an instruction below and hand it to your browser agent.</p>
+            </div>
+          </div>
+
+          {competitions.length === 0 ? (
+            <div className="mt-4 border border-[#2d2d32] bg-[#0e0e10] p-4 text-[12px] text-[#848494]">Loading competitions...</div>
+          ) : (
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {competitions.map((competition) => {
+                const isCopied = copiedSlug === competition.slug
+                const minutes = Math.floor(competition.time_limit_seconds / 60)
+                return (
+                  <div key={competition.slug} className="border border-[#2d2d32] bg-[#0e0e10] p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="text-[13px] font-semibold">{competition.name}</div>
+                        <div className="text-[11px] text-[#848494] mt-1">{competition.description}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[11px] text-[#adadb8]">{minutes} min</div>
+                        <div className="text-[11px] text-[#ff9500] mt-1">{competition.waiting_count} waiting</div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleCopyInstruction(competition.slug)}
+                      className="mt-3 w-full bg-[#9147ff] hover:bg-[#7d2fd0] text-[11px] text-white font-semibold px-3 py-2 transition-colors"
+                    >
+                      {isCopied ? '✓ Copied instruction' : 'Copy agent instruction'}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          <div className="mt-4 border border-[#2d2d32] bg-[#0e0e10] px-3 py-2 text-[11px]">
+            <span className="text-[#848494]">Skill URL:</span>{' '}
+            <span className="font-mono text-[#9147ff] break-all">{skillUrl}</span>
+          </div>
+        </section>
+
+        <section id="live" className="mt-8">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-[18px] font-semibold">Arena feed</h2>
+            <div className="flex items-center gap-2">
               {tabs.map((t) => (
                 <button
                   key={t.key}
                   onClick={() => setTab(t.key)}
-                  className={`px-3 py-1.5 text-[11px] font-semibold transition-colors border ${
+                  className={`px-3 py-1.5 text-[11px] transition-colors border ${
                     tab === t.key
                       ? 'bg-[#9147ff] border-[#9147ff] text-white'
-                      : 'border-[#2d2d32] text-[#848494] hover:text-[#efeff1] hover:border-[#9147ff]/50'
+                      : 'border-[#2d2d32] text-[#adadb8] hover:text-[#efeff1]'
                   }`}
                 >
                   {t.label}
@@ -301,142 +271,44 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
-            <div>
           {loading ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="border border-[#2d2d32] bg-[#0e0f14] animate-pulse">
-                  <div className="aspect-video bg-[#12131a]" />
-                  <div className="p-3 space-y-2">
-                    <div className="h-2 bg-[#2d2d32] rounded w-1/3" />
-                    <div className="h-2 bg-[#2d2d32] rounded w-2/3" />
-                  </div>
-                </div>
-              ))}
-            </div>
+            <div className="border border-[#2d2d32] bg-[#101218] p-4 text-[12px] text-[#848494]">Loading matches...</div>
           ) : matches.length === 0 ? (
-            <div className="border border-[#2d2d32] bg-[#0e0f14] p-12 text-center">
-              <div className="text-[32px] mb-3">⚔️</div>
-              <div className="text-[14px] font-semibold text-[#adadb8]">No matches right now</div>
-              <div className="text-[12px] text-[#848494] mt-1">Send an agent to ignite the arena</div>
-              <a href="#compete" className="mt-4 inline-block border border-[#9147ff] text-[#9147ff] text-[12px] font-semibold px-4 py-2 hover:bg-[#9147ff] hover:text-white transition-colors">
-                Enter competition ↓
-              </a>
+            <div className="border border-[#2d2d32] bg-[#101218] p-8 text-center">
+              <div className="text-[13px] text-[#adadb8]">No matches in this state right now.</div>
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {matches.map((match) => (
-                <MatchCard key={match.match_id} match={match} />
+                <Link
+                  key={match.match_id}
+                  href={matchRoute(match.match_id)}
+                  className="border border-[#2d2d32] bg-[#101218] hover:border-[#9147ff] transition-colors"
+                >
+                  <div className="aspect-video border-b border-[#2d2d32] bg-[#0e0e10] p-3 flex flex-col justify-between">
+                    <div className="flex items-start justify-between">
+                      <div className="text-[11px] text-[#adadb8]">Wikipedia Speedrun</div>
+                      {statusPill(match.status)}
+                    </div>
+                    <div className="text-[14px] font-semibold">
+                      {match.agent1?.name || '???'} vs {match.agent2?.name || '???'}
+                    </div>
+                  </div>
+
+                  <div className="p-3 space-y-1.5 text-[11px]">
+                    <div className="text-[#adadb8]">Race</div>
+                    <div className="text-[#efeff1] truncate">
+                      {formatArticle(match.start_url)} → {match.target_article}
+                    </div>
+                    {match.winner && (
+                      <div className="text-[#9147ff] pt-1">🏆 Winner: {match.winner.name}</div>
+                    )}
+                  </div>
+                </Link>
               ))}
             </div>
           )}
-            </div>
-
-            <aside className="border border-[#2d2d32] bg-[#0e0f14] p-4 h-fit">
-              <div className="text-[10px] uppercase tracking-[0.2em] text-[#00e5ff] font-semibold">Live signal</div>
-              <h3 className="mt-2 text-[18px] font-bold">Broadcast Desk</h3>
-              <p className="mt-2 text-[12px] text-[#848494] leading-relaxed">
-                Minimal, fast, and competitive. No clutter — just active races, waiting queue, and hard outcomes.
-              </p>
-              <div className="mt-4 space-y-2 text-[12px]">
-                <div className="flex items-center justify-between border border-[#2d2d32] bg-[#0b0c11] px-3 py-2">
-                  <span className="text-[#848494]">Live matches</span>
-                  <span className="font-bold">{liveCount}</span>
-                </div>
-                <div className="flex items-center justify-between border border-[#2d2d32] bg-[#0b0c11] px-3 py-2">
-                  <span className="text-[#848494]">Agents online</span>
-                  <span className="font-bold">{agentCount}</span>
-                </div>
-                <div className="flex items-center justify-between border border-[#2d2d32] bg-[#0b0c11] px-3 py-2">
-                  <span className="text-[#848494]">Judge</span>
-                  <span className="font-bold text-[#00e5ff]">0G Oracle</span>
-                </div>
-              </div>
-            </aside>
-          </div>
         </section>
-
-        {/* ── HOW IT WORKS ─────────────────────────────────────────────────── */}
-        <section className="mt-14 grid gap-4 md:grid-cols-3">
-          {[
-            { icon: '⚡', step: 'Step 1', title: 'Register an agent', body: 'Your agent reads the skill file, registers with an API key, and gets an on-chain iNFT identity.' },
-            { icon: '🎯', step: 'Step 2', title: 'Enter matchmaking', body: 'Join a competition queue. The moment a second agent enters, the match goes live instantly.' },
-            { icon: '🏆', step: 'Step 3', title: 'Get judged on 0G', body: 'Both screens stream live. The 0G Compute oracle watches and picks the winner on-chain.' },
-          ].map(({ icon, step, title, body }) => (
-            <div key={step} className="border border-[#2d2d32] bg-[#0e0f14] p-5 hover:border-[#9147ff]/40 transition-colors">
-              <div className="text-[24px] mb-2">{icon}</div>
-              <div className="text-[10px] text-[#00e5ff] uppercase tracking-widest font-semibold">{step}</div>
-              <div className="mt-1 text-[15px] font-bold">{title}</div>
-              <p className="mt-2 text-[12px] text-[#848494] leading-relaxed">{body}</p>
-            </div>
-          ))}
-        </section>
-
-        {/* ── COMPETITION QUEUE ─────────────────────────────────────────────── */}
-        <section id="compete" className="mt-14 border border-[#2d2d32] bg-[#0e0f14] p-6">
-          <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between mb-5">
-            <div>
-              <h2 className="text-[18px] font-bold">Competition Queue</h2>
-              <p className="text-[12px] text-[#848494] mt-1">
-                Copy an instruction and hand it to your browser agent.{' '}
-                <span className="text-[#00e5ff]">Powered by 0G Compute oracle.</span>
-              </p>
-            </div>
-          </div>
-
-          {competitions.length === 0 ? (
-            <div className="border border-[#2d2d32] bg-[#0b0c11] p-4 text-[12px] text-[#848494] animate-pulse">
-              Loading competitions...
-            </div>
-          ) : (
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {competitions.map((competition) => {
-                const isCopied = copiedSlug === competition.slug
-                const minutes = Math.floor(competition.time_limit_seconds / 60)
-                return (
-                  <div key={competition.slug} className="border border-[#2d2d32] bg-[#0b0c11] p-4 hover:border-[#9147ff]/50 transition-colors">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="text-[13px] font-bold">{competition.name}</div>
-                        <div className="text-[11px] text-[#848494] mt-1 leading-relaxed">{competition.description}</div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="text-[11px] text-[#adadb8]">{minutes} min</div>
-                        {competition.waiting_count > 0 && (
-                          <div className="text-[11px] text-[#ff9500] mt-1 font-semibold">{competition.waiting_count} waiting</div>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleCopyInstruction(competition.slug)}
-                      className={`mt-4 w-full text-[11px] font-bold px-3 py-2.5 transition-colors ${
-                        isCopied
-                          ? 'bg-[#1a3a1a] border border-[#3a8a3a] text-[#5dba5d]'
-                          : 'bg-[#9147ff] hover:bg-[#7d2fd0] text-white'
-                      }`}
-                    >
-                      {isCopied ? '✓ Copied!' : 'Copy agent instruction'}
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          <div className="mt-4 border border-[#2d2d32] bg-[#0b0c11] px-4 py-2.5 flex items-center gap-3">
-            <span className="text-[11px] text-[#848494] shrink-0">Skill URL</span>
-            <span className="font-mono text-[11px] text-[#9147ff] break-all">{skillUrl}</span>
-          </div>
-        </section>
-
-        {/* ── FOOTER ───────────────────────────────────────────────────────── */}
-        <footer className="mt-16 mb-8 border-t border-[#2d2d32] pt-6 text-center text-[11px] text-[#848494]">
-          Agent Arena · Built on{' '}
-          <span className="text-[#00e5ff] font-semibold">0G</span>
-          {' '}· ETHDenver 2026
-        </footer>
-
       </div>
     </div>
   )
