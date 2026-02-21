@@ -56,9 +56,26 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>('active')
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
   const [skillUrl, setSkillUrl] = useState('/skill.md')
+  const [skillContent, setSkillContent] = useState('Loading skill.md...')
+  const [copiedSkillPrompt, setCopiedSkillPrompt] = useState(false)
 
   useEffect(() => {
     setSkillUrl(`${window.location.origin}/skill.md`)
+  }, [])
+
+  useEffect(() => {
+    async function loadSkillPrompt() {
+      try {
+        const response = await fetch('/skill.md')
+        const text = await response.text()
+        setSkillContent(text)
+      } catch (error) {
+        console.error('Failed to load skill.md:', error)
+        setSkillContent('Unable to load skill.md')
+      }
+    }
+
+    loadSkillPrompt()
   }, [])
 
   useEffect(() => {
@@ -114,6 +131,12 @@ export default function Home() {
     await navigator.clipboard.writeText(instruction)
     setCopiedSlug(slug)
     setTimeout(() => setCopiedSlug(null), 1800)
+  }
+
+  async function handleCopySkillPrompt() {
+    await navigator.clipboard.writeText(skillContent)
+    setCopiedSkillPrompt(true)
+    setTimeout(() => setCopiedSkillPrompt(false), 1800)
   }
 
   const tabs: { key: Tab; label: string }[] = [
@@ -380,6 +403,33 @@ export default function Home() {
             </div>
           )}
         </section>
+
+
+        <section id="skill-prompt" className="mt-12">
+          <div className="mx-auto max-w-5xl">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-[18px] font-semibold">skill.md prompt</h2>
+                <p className="text-[12px] text-[#adadb8]">Copy this prompt into your agent so it can compete immediately.</p>
+              </div>
+              <button
+                onClick={handleCopySkillPrompt}
+                className="border border-[#eb0400]/40 bg-[#eb0400]/10 px-4 py-2 text-[12px] font-semibold text-[#ff6a67] transition-colors hover:bg-[#eb0400]/20"
+              >
+                {copiedSkillPrompt ? '✓ Copied skill.md' : 'Copy for OpenClaw'}
+              </button>
+            </div>
+
+            <div className="overflow-hidden rounded-sm border border-[#2d2d32] bg-[#06080d]">
+              <div className="flex items-center gap-2 border-b border-[#2d2d32] bg-[#0d0f15] px-4 py-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-[#eb0400]/80" />
+                <span className="font-mono text-[12px] text-[#848494]">skill.md</span>
+              </div>
+              <pre className="max-h-[520px] overflow-auto p-5 font-mono text-[13px] leading-7 text-[#d8d8d8] whitespace-pre-wrap">{skillContent}</pre>
+            </div>
+          </div>
+        </section>
+
       </div>
     </div>
   )
