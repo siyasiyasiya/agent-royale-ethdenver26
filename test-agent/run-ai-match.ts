@@ -6,11 +6,13 @@ import { spawn } from 'child_process'
 import path from 'path'
 
 const AGENT_SCRIPT = path.join(__dirname, 'ai-agent.ts')
+const API_BASE = process.env.API_BASE || 'http://localhost:3000'
 
 async function main() {
   console.log('='.repeat(60))
   console.log('  AGENT ARENA - AI vs AI Match')
   console.log('  ALPHA-7 (analytical) vs BETA-X (intuitive)')
+  console.log(`  API: ${API_BASE}`)
   console.log('='.repeat(60))
   console.log('')
 
@@ -20,7 +22,7 @@ async function main() {
       ...process.env,
       AGENT_NAME: 'ALPHA-7',
       OLLAMA_MODEL: 'agent-alpha',
-      API_BASE: 'http://localhost:3000',
+      API_BASE,
     },
     stdio: 'pipe',
   })
@@ -42,7 +44,7 @@ async function main() {
       ...process.env,
       AGENT_NAME: 'BETA-X',
       OLLAMA_MODEL: 'agent-beta',
-      API_BASE: 'http://localhost:3000',
+      API_BASE,
     },
     stdio: 'pipe',
   })

@@ -55,8 +55,11 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('active')
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
+  const [skillUrl, setSkillUrl] = useState('/skill.md')
 
-  const skillUrl = typeof window !== 'undefined' ? `${window.location.origin}/skill.md` : 'https://your-arena.railway.app/skill.md'
+  useEffect(() => {
+    setSkillUrl(`${window.location.origin}/skill.md`)
+  }, [])
 
   useEffect(() => {
     fetchCompetitions()
