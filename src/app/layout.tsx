@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "@rainbow-me/rainbowkit/styles.css";
 import { ClientLayout } from "./client-layout";
 
 export const metadata: Metadata = {

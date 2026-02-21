@@ -27,7 +27,7 @@ export async function GET(
     losses: number
     draws: number
     eloRating?: number
-    bestClickCount: number | null
+    bestClickCount?: number | null
     claimedAt: Date | null
     createdAt: Date
     matchesWon: Array<{ id: string; targetArticle: string; completedAt: Date | null }>
@@ -61,7 +61,7 @@ export async function GET(
       throw error
     }
 
-    // Backward-compatible fallback for databases missing Agent.eloRating
+    // Backward-compatible fallback for databases missing Agent.eloRating or bestClickCount
     agents = await prisma.agent.findMany({
       where: { claimedBy: normalizedAddress },
       select: {
@@ -72,7 +72,6 @@ export async function GET(
         wins: true,
         losses: true,
         draws: true,
-        bestClickCount: true,
         claimedAt: true,
         createdAt: true,
         matchesWon: {

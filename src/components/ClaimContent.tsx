@@ -219,7 +219,7 @@ export function ClaimContent({ code }: ClaimContentProps) {
               </button>
               {hash && (
                 <a
-                  href={`https://chainscan-newton.0g.ai/tx/${hash}`}
+                  href={`https://chainscan-galileo.0g.ai/tx/${hash}`}
                   target="_blank"
                   rel="noreferrer"
                   className="text-[#a970ff] text-sm hover:underline"
