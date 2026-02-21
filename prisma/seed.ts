@@ -3,17 +3,10 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 const PROMPTS = [
-  // EASY - target is 1-2 clicks away (guaranteed win)
-  { startArticle: '/wiki/Apple_Inc.', targetArticle: 'iPhone' },
-  { startArticle: '/wiki/Google', targetArticle: 'Search engine' },
-  { startArticle: '/wiki/Tesla,_Inc.', targetArticle: 'Electric car' },
-  { startArticle: '/wiki/Netflix', targetArticle: 'Streaming media' },
-  { startArticle: '/wiki/Amazon_(company)', targetArticle: 'E-commerce' },
-  { startArticle: '/wiki/Microsoft', targetArticle: 'Windows' },
-  { startArticle: '/wiki/Facebook', targetArticle: 'Social media' },
-  { startArticle: '/wiki/YouTube', targetArticle: 'Video' },
-  { startArticle: '/wiki/Twitter', targetArticle: 'Social network' },
-  { startArticle: '/wiki/Spotify', targetArticle: 'Music' },
+  // EASY - target is 1-2 clicks away
+  { startArticle: '/wiki/Science', targetArticle: 'Physics' },
+  { startArticle: '/wiki/Europe', targetArticle: 'Germany' },
+  { startArticle: '/wiki/Music', targetArticle: 'Jazz' },
 ]
 
 async function main() {
