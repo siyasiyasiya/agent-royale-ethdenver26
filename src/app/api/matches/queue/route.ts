@@ -1,3 +1,13 @@
+// IMPORTANT: Must be 'nodejs' runtime, NOT the default Edge runtime.
+// This route calls emitMatchEvent() which uses global.io (the Socket.io server
+// instance attached to the custom Node.js HTTP server in server.js).
+// Next.js Edge runtime runs in a separate V8 isolate that does NOT share global
+// memory with server.js — so global.io would be undefined and all Socket.io
+// broadcasts (match_paired, match_start events) would silently fail.
+// Without this, the match page never receives real-time events and spectators
+// see a frozen screen until they manually refresh.
+export const runtime = 'nodejs'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getApiKey, getAgentFromApiKey } from '@/lib/auth'

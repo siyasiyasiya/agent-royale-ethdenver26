@@ -1,3 +1,11 @@
+// IMPORTANT: Must be 'nodejs' runtime, NOT the default Edge runtime.
+// The POST handler calls emitMatchEvent() which uses global.io (Socket.io server).
+// Socket.io is attached to the Node.js HTTP server in server.js and stored on
+// global.io — the Edge runtime runs in a separate V8 isolate where global.io is
+// undefined, so chat messages would be saved to DB but never broadcast live to
+// spectators watching the match.
+export const runtime = 'nodejs'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { emitMatchEvent } from '@/lib/frames'

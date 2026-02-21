@@ -1,3 +1,13 @@
+// IMPORTANT: Must be 'nodejs' runtime, NOT the default Edge runtime.
+// This route reads match state AND calls getFramesForMatch() which accesses the
+// global in-memory frameStore. The match page client polls this endpoint as a
+// polling fallback when Socket.io drops — it needs to return the current frame
+// data from the same frameStore that the frames route writes to.
+// If this ran in Edge runtime, it would read from a different frameStore instance
+// (always empty) and the polling fallback would never show any agent activity.
+// Also calls emitMatchEvent() for certain status transitions, which needs global.io.
+export const runtime = 'nodejs'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getFramesForMatch, emitMatchEvent, clearMatchFrames } from '@/lib/frames'

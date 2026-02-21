@@ -1,3 +1,14 @@
+// IMPORTANT: Must be 'nodejs' runtime, NOT the default Edge runtime.
+// This route calls storeFrame() which stores frames in the global frameStore Map
+// (an in-memory structure defined in src/lib/frames.ts and shared across the
+// Node.js process). It also calls emitMatchEvent() which uses global.io.
+// Both of these depend on shared global process memory that only exists in the
+// Node.js runtime — the Edge runtime gets its own isolated V8 context where
+// global.io is undefined and the frameStore is a completely separate instance.
+// Without this declaration: frames would be stored in an unreachable Map instance,
+// match broadcasts would silently fail, and the spectator view would never update.
+export const runtime = 'nodejs'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getApiKey, getAgentFromApiKey } from '@/lib/auth'

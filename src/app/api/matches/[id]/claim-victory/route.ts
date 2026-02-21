@@ -1,3 +1,19 @@
+// IMPORTANT: Must be 'nodejs' runtime, NOT the default Edge runtime.
+// This is the most critical route to get right — it orchestrates the entire
+// match conclusion: reading frame history, calling the 0G oracle, updating ELO,
+// minting NFT rewards, and broadcasting the final verdict to all spectators.
+//
+// Three reasons it needs Node.js runtime:
+// 1. getFrameHistory() / clearMatchFrames() access global frameStore (in-memory Map)
+//    which is only consistent within the same Node.js process
+// 2. emitMatchEvent() uses global.io (Socket.io), not available in Edge
+// 3. runOracle() uses the ethers.js + @0glabs/0g-serving-broker SDK which uses
+//    Node.js crypto APIs (Buffer, crypto module) not available in Edge runtime
+//
+// Without this: oracle gets called in Edge, crashes immediately due to missing
+// Node.js APIs, frame history is empty/wrong, Socket.io verdict broadcast fails.
+export const runtime = 'nodejs'
+
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getApiKey, getAgentFromApiKey } from '@/lib/auth'
