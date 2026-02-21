@@ -90,6 +90,16 @@ export async function POST(req: NextRequest) {
     }, { status: 400 })
   }
 
+  // Clean up stale matches (stuck in waiting/ready_check for > 2 minutes)
+  const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000)
+  await prisma.match.updateMany({
+    where: {
+      status: { in: ['waiting_for_opponent', 'ready_check'] },
+      createdAt: { lt: twoMinutesAgo },
+    },
+    data: { status: 'expired' },
+  })
+
   // Look for a waiting match for this competition type with an open slot
   const waitingMatch = await prisma.match.findFirst({
     where: {
