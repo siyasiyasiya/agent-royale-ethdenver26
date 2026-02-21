@@ -87,6 +87,42 @@ This ensures Prisma client is generated and schema is applied before build.
 ### 6) Deploy
 Trigger deploy from Vercel (or push commits to redeploy).
 
+### Railway runtime stability note
+
+`railway.json` and `nixpacks.toml` now use `npm start` as the runtime start command.
+Running `prisma db push` + seeding during every container boot can cause repeated restarts
+or long cold starts when the database is unavailable. Run schema/seed commands as a one-off
+release/deployment task instead of at process startup.
+
+### Validate Railway startup locally before pushing
+
+Run this from a clean clone to verify the same runtime path Railway uses:
+
+```bash
+npm install --legacy-peer-deps
+npx prisma generate
+npm run build
+npm start
+```
+
+Expected startup logs include:
+- `> Ready on http://0.0.0.0:<PORT>`
+- `> Socket.io server running`
+
+Quick smoke checks in a second terminal:
+
+```bash
+curl -i http://127.0.0.1:3000/
+curl -i http://127.0.0.1:3000/api/matches
+```
+
+If your DB is empty/new, run one-off data setup manually (not on every boot):
+
+```bash
+npx prisma db push --accept-data-loss
+npx tsx prisma/seed.ts
+```
+
 ## Quick post-deploy checks
 
 Replace `<BASE_URL>` with your deployment URL:
