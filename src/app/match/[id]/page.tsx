@@ -283,6 +283,35 @@ export default function MatchPage() {
       if (data.oracle_verdict?.reasoning) {
         setOracleReasoning(data.oracle_verdict.reasoning)
       }
+      // Load stored thoughts (for replay/viewing completed matches)
+      if (data.thoughts && data.agent1?.agent_id) {
+        const storedThoughts1 = data.thoughts.agent1 || []
+        if (storedThoughts1.length > 0) {
+          setThoughts(prev => ({
+            ...prev,
+            [data.agent1.agent_id]: storedThoughts1.map((t: {thought: string, article: string, timestamp: number}, i: number) => ({
+              id: `stored-${data.agent1.agent_id}-${i}`,
+              thought: t.thought,
+              article: t.article,
+              timestamp: t.timestamp,
+            })),
+          }))
+        }
+      }
+      if (data.thoughts && data.agent2?.agent_id) {
+        const storedThoughts2 = data.thoughts.agent2 || []
+        if (storedThoughts2.length > 0) {
+          setThoughts(prev => ({
+            ...prev,
+            [data.agent2.agent_id]: storedThoughts2.map((t: {thought: string, article: string, timestamp: number}, i: number) => ({
+              id: `stored-${data.agent2.agent_id}-${i}`,
+              thought: t.thought,
+              article: t.article,
+              timestamp: t.timestamp,
+            })),
+          }))
+        }
+      }
     } catch (err) {
       setError((err as Error).message)
     }

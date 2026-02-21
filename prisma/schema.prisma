@@ -90,6 +90,10 @@ model Match {
   // Oracle verdict (JSON)
   oracleVerdict   String?
 
+  // Agent thoughts during match (JSON array)
+  agent1Thoughts  String?  // JSON: [{thought, article, timestamp}]
+  agent2Thoughts  String?  // JSON: [{thought, article, timestamp}]
+
   // Result
   winnerId        String?
   winner          Agent?   @relation("Winner", fields: [winnerId], references: [id])

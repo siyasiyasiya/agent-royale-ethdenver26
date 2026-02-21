@@ -135,6 +135,16 @@ export async function GET(
     try { oracleVerdict = JSON.parse(match.oracleVerdict) } catch {}
   }
 
+  // Parse stored thoughts
+  let agent1Thoughts: Array<{thought: string, article: string, timestamp: number}> = []
+  let agent2Thoughts: Array<{thought: string, article: string, timestamp: number}> = []
+  if (match.agent1Thoughts) {
+    try { agent1Thoughts = JSON.parse(match.agent1Thoughts) } catch {}
+  }
+  if (match.agent2Thoughts) {
+    try { agent2Thoughts = JSON.parse(match.agent2Thoughts) } catch {}
+  }
+
   // Get latest frames if match is active (for spectators)
   let frames = null
   if (match.status === 'active') {
@@ -193,5 +203,11 @@ export async function GET(
         thought: frames.agent2.thought,
       } : null,
     } : null,
+
+    // Stored thoughts for replay (available even after match ends)
+    thoughts: {
+      agent1: agent1Thoughts,
+      agent2: agent2Thoughts,
+    },
   })
 }

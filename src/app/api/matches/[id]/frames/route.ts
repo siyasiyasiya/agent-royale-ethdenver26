@@ -79,12 +79,35 @@ export async function POST(
 
   // Update last URL and click count in DB
   const lastUrl = isAgent1 ? match.agent1LastUrl : match.agent2LastUrl
-  if (current_url !== lastUrl) {
+  const urlChanged = current_url !== lastUrl
+
+  // Persist thought to database if present and URL changed (new article)
+  const thoughtText = thought?.trim()
+  if (urlChanged) {
+    const thoughtsField = isAgent1 ? 'agent1Thoughts' : 'agent2Thoughts'
+    const existingThoughts = isAgent1 ? match.agent1Thoughts : match.agent2Thoughts
+
+    let thoughtsArray: Array<{thought: string, article: string, timestamp: number}> = []
+    if (existingThoughts) {
+      try { thoughtsArray = JSON.parse(existingThoughts) } catch {}
+    }
+
+    // Extract article name from URL
+    const article = current_url
+      ? decodeURIComponent(current_url.split('/wiki/')[1] || '').replace(/_/g, ' ')
+      : 'Unknown'
+
+    // Add new thought if present
+    if (thoughtText) {
+      thoughtsArray.push({ thought: thoughtText, article, timestamp: Date.now() })
+    }
+
     await prisma.match.update({
       where: { id: matchId },
       data: {
         [isAgent1 ? 'agent1LastUrl' : 'agent2LastUrl']: current_url,
         [isAgent1 ? 'agent1Clicks' : 'agent2Clicks']: click_count || 0,
+        [thoughtsField]: JSON.stringify(thoughtsArray),
       },
     })
   }
