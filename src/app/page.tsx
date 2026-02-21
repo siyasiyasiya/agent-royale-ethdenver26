@@ -115,7 +115,6 @@ export default function Home() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'active', label: 'Live now' },
-    { key: 'waiting_for_opponent', label: 'Waiting rooms' },
     { key: 'complete', label: 'Completed' },
   ]
 
