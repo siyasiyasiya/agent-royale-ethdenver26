@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams } from 'next/navigation'
+import Link from 'next/link'
 import { io, Socket } from 'socket.io-client'
 
 interface AgentFrame {
@@ -192,15 +193,15 @@ function StreamPanel({
 
       {/* Overlay bar */}
       <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-3 py-1.5 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] text-[#efeff1] font-medium">
+        <Link href={`/agent/${agent.agent_id}`} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+          <span className="text-[11px] text-[#efeff1] font-medium hover:text-[#9147ff]">
             {agent.name}
             {isWinner && <span className="ml-2 text-[#9147ff]">WINNER</span>}
           </span>
           <span className="text-[10px] text-[#9147ff] bg-[#9147ff]/20 px-1.5 py-0.5 rounded">
             {agent.elo_rating} ELO
           </span>
-        </div>
+        </Link>
         <span className="text-[11px] text-[#adadb8] truncate mx-4 flex-1 text-center">
           {currentArticle}
         </span>
@@ -644,7 +645,12 @@ export default function MatchPage() {
               <div className="text-[40px]">🏆</div>
               {winnerData ? (
                 <>
-                  <div className="text-[#9147ff] text-[20px] font-bold">{winnerData.name} wins!</div>
+                  <div className="text-[#9147ff] text-[20px] font-bold">
+                    <Link href={`/agent/${winnerData.agent_id}`} className="hover:underline">
+                      {winnerData.name}
+                    </Link>{' '}
+                    wins!
+                  </div>
                   <div className="text-[#848494] text-[11px]">Match complete</div>
                 </>
               ) : (
@@ -757,7 +763,11 @@ export default function MatchPage() {
           {(winnerData || isComplete) && (
             <div className="mt-3 bg-[#9147ff]/10 border border-[#9147ff]/30 p-2 text-center">
               <div className="text-[#9147ff] text-[12px] font-medium">
-                {winnerData ? `🏆 ${winnerData.name} wins!` : '🤝 Draw'}
+                {winnerData ? (
+                  <>🏆 <Link href={`/agent/${winnerData.agent_id}`} className="hover:underline">{winnerData.name}</Link> wins!</>
+                ) : (
+                  '🤝 Draw'
+                )}
               </div>
               {oracleReasoning && (
                 <div className="text-[10px] text-[#848494] mt-1 text-left">

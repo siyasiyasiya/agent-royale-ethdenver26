@@ -163,9 +163,12 @@ export default function Home() {
               </div>
 
               {liveMatch ? (
-                <Link href={matchRoute(liveMatch.match_id)} className="block">
+                <div>
                   <div className="flex items-center justify-center gap-6 py-4">
-                    <div className="flex flex-col items-center">
+                    <Link
+                      href={liveMatch.agent1 ? `/agent/${liveMatch.agent1.agent_id}` : '#'}
+                      className="flex flex-col items-center hover:opacity-80 transition-opacity"
+                    >
                       <div className="w-16 h-16 rounded-full bg-[#18181b] border-2 border-[#9147ff]/50 overflow-hidden">
                         {liveMatch.agent1?.image_url ? (
                           <img src={liveMatch.agent1.image_url} alt={liveMatch.agent1.name} className="w-full h-full object-cover" />
@@ -173,15 +176,18 @@ export default function Home() {
                           <div className="w-full h-full flex items-center justify-center text-[#848494] text-xl">?</div>
                         )}
                       </div>
-                      <div className="mt-2 text-[12px] text-[#efeff1] font-medium">{liveMatch.agent1?.name || '???'}</div>
+                      <div className="mt-2 text-[12px] text-[#efeff1] font-medium hover:text-[#9147ff]">{liveMatch.agent1?.name || '???'}</div>
                       {liveMatch.agent1?.elo_rating && (
                         <div className="text-[10px] text-[#9147ff]">{liveMatch.agent1.elo_rating} ELO</div>
                       )}
-                    </div>
+                    </Link>
 
                     <div className="text-[#9147ff] text-[14px] font-bold">VS</div>
 
-                    <div className="flex flex-col items-center">
+                    <Link
+                      href={liveMatch.agent2 ? `/agent/${liveMatch.agent2.agent_id}` : '#'}
+                      className="flex flex-col items-center hover:opacity-80 transition-opacity"
+                    >
                       <div className="w-16 h-16 rounded-full bg-[#18181b] border-2 border-[#9147ff]/50 overflow-hidden">
                         {liveMatch.agent2?.image_url ? (
                           <img src={liveMatch.agent2.image_url} alt={liveMatch.agent2.name} className="w-full h-full object-cover" />
@@ -189,18 +195,19 @@ export default function Home() {
                           <div className="w-full h-full flex items-center justify-center text-[#848494] text-xl">?</div>
                         )}
                       </div>
-                      <div className="mt-2 text-[12px] text-[#efeff1] font-medium">{liveMatch.agent2?.name || '???'}</div>
+                      <div className="mt-2 text-[12px] text-[#efeff1] font-medium hover:text-[#9147ff]">{liveMatch.agent2?.name || '???'}</div>
                       {liveMatch.agent2?.elo_rating && (
                         <div className="text-[10px] text-[#9147ff]">{liveMatch.agent2.elo_rating} ELO</div>
                       )}
-                    </div>
+                    </Link>
                   </div>
-                  <div className="border-t border-[#2d2d32] pt-3 space-y-1 text-[11px]">
+                  <Link href={matchRoute(liveMatch.match_id)} className="block border-t border-[#2d2d32] pt-3 space-y-1 text-[11px] hover:bg-[#18181b] -mx-4 px-4 pb-1 transition-colors">
                     <div className="text-[#adadb8]">
                       {formatArticle(liveMatch.start_url)} → {liveMatch.target_article}
                     </div>
-                  </div>
-                </Link>
+                    <div className="text-[10px] text-[#9147ff]">Watch match →</div>
+                  </Link>
+                </div>
               ) : (
                 <div className="text-[12px] text-[#848494] p-4 border border-[#2d2d32] bg-[#0e0e10]">
                   Queue is quiet right now. Send an agent to ignite the arena.
@@ -315,7 +322,11 @@ export default function Home() {
 
                     {/* Agent avatars */}
                     <div className="flex items-center justify-center gap-4">
-                      <div className="flex flex-col items-center">
+                      <Link
+                        href={match.agent1 ? `/agent/${match.agent1.agent_id}` : '#'}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex flex-col items-center hover:opacity-80 transition-opacity"
+                      >
                         <div className="w-14 h-14 rounded-full bg-[#18181b] border-2 border-[#2d2d32] overflow-hidden">
                           {match.agent1?.image_url ? (
                             <img src={match.agent1.image_url} alt={match.agent1.name} className="w-full h-full object-cover" />
@@ -323,17 +334,21 @@ export default function Home() {
                             <div className="w-full h-full flex items-center justify-center text-[#848494] text-lg">?</div>
                           )}
                         </div>
-                        <div className="mt-2 text-[11px] text-[#efeff1] font-medium truncate max-w-[80px]">
+                        <div className="mt-2 text-[11px] text-[#efeff1] font-medium truncate max-w-[80px] hover:text-[#9147ff]">
                           {match.agent1?.name || '???'}
                         </div>
                         {match.agent1?.elo_rating && (
                           <div className="text-[10px] text-[#9147ff]">{match.agent1.elo_rating} ELO</div>
                         )}
-                      </div>
+                      </Link>
 
                       <div className="text-[#848494] text-[12px] font-bold">VS</div>
 
-                      <div className="flex flex-col items-center">
+                      <Link
+                        href={match.agent2 ? `/agent/${match.agent2.agent_id}` : '#'}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex flex-col items-center hover:opacity-80 transition-opacity"
+                      >
                         <div className="w-14 h-14 rounded-full bg-[#18181b] border-2 border-[#2d2d32] overflow-hidden">
                           {match.agent2?.image_url ? (
                             <img src={match.agent2.image_url} alt={match.agent2.name} className="w-full h-full object-cover" />
@@ -341,13 +356,13 @@ export default function Home() {
                             <div className="w-full h-full flex items-center justify-center text-[#848494] text-lg">?</div>
                           )}
                         </div>
-                        <div className="mt-2 text-[11px] text-[#efeff1] font-medium truncate max-w-[80px]">
+                        <div className="mt-2 text-[11px] text-[#efeff1] font-medium truncate max-w-[80px] hover:text-[#9147ff]">
                           {match.agent2?.name || '???'}
                         </div>
                         {match.agent2?.elo_rating && (
                           <div className="text-[10px] text-[#9147ff]">{match.agent2.elo_rating} ELO</div>
                         )}
-                      </div>
+                      </Link>
                     </div>
                   </div>
 
