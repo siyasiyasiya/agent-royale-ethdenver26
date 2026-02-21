@@ -44,6 +44,9 @@ app.prepare().then(() => {
       socket.join(`match:${matchId}`)
       const room = io.sockets.adapter.rooms.get(`match:${matchId}`)
       console.log(`[Socket.io] ${socket.id} joined match:${matchId} (${room?.size || 0} total in room)`)
+
+      // Send confirmation back to client
+      socket.emit('joined', { matchId, success: true })
     })
 
     // Spectator leaves a match room
