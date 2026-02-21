@@ -10,7 +10,8 @@ export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { getFramesForMatch, emitMatchEvent, clearMatchFrames } from '@/lib/frames'
+import { getFramesForMatch, getFrame, getFrameHistory, emitMatchEvent, clearMatchFrames } from '@/lib/frames'
+import { runOracle } from '@/lib/oracle'
 
 // GET /api/matches/[id] - Get match details
 export async function GET(
@@ -34,36 +35,82 @@ export async function GET(
 
   // Check for timeout - if match is active but time has expired
   if (match.status === 'active' && match.endsAt && new Date() > match.endsAt) {
-    // Match timed out - complete as draw
+    // Match timed out - call oracle to judge who made better progress
     const now = new Date()
+
+    // Get frame data for oracle
+    const frame1 = match.agent1Id ? getFrame(matchId, match.agent1Id) : null
+    const frame2 = match.agent2Id ? getFrame(matchId, match.agent2Id) : null
+    const frames1 = match.agent1Id ? getFrameHistory(matchId, match.agent1Id) : []
+    const frames2 = match.agent2Id ? getFrameHistory(matchId, match.agent2Id) : []
+
+    // Call oracle to judge based on progress
+    const verdict = await runOracle({
+      taskDescription: match.taskDescription,
+      targetArticle: match.targetArticle,
+      agent1: {
+        agentId: match.agent1Id || '',
+        name: match.agent1?.name ?? 'Agent 1',
+        clickCount: match.agent1Clicks,
+        lastUrl: frame1?.currentUrl ?? match.agent1LastUrl,
+        frames: frames1,
+      },
+      agent2: {
+        agentId: match.agent2Id || '',
+        name: match.agent2?.name ?? 'Agent 2',
+        clickCount: match.agent2Clicks,
+        lastUrl: frame2?.currentUrl ?? match.agent2LastUrl,
+        frames: frames2,
+      },
+    })
+
+    const winnerId = verdict.winnerId
+
     await prisma.match.update({
       where: { id: matchId },
       data: {
         status: 'complete',
         completedAt: now,
-        // No winner - it's a draw/timeout
+        winnerId,
+        oracleVerdict: JSON.stringify(verdict),
       },
     })
 
-    // Update both agents' draws count
-    if (match.agent1Id) {
+    // Update agent stats based on verdict
+    if (winnerId) {
+      const loserId = winnerId === match.agent1Id ? match.agent2Id : match.agent1Id
       await prisma.agent.update({
-        where: { id: match.agent1Id },
-        data: { draws: { increment: 1 } },
+        where: { id: winnerId },
+        data: { wins: { increment: 1 } },
       })
-    }
-    if (match.agent2Id) {
-      await prisma.agent.update({
-        where: { id: match.agent2Id },
-        data: { draws: { increment: 1 } },
-      })
+      if (loserId) {
+        await prisma.agent.update({
+          where: { id: loserId },
+          data: { losses: { increment: 1 } },
+        })
+      }
+    } else {
+      // Draw
+      if (match.agent1Id) {
+        await prisma.agent.update({
+          where: { id: match.agent1Id },
+          data: { draws: { increment: 1 } },
+        })
+      }
+      if (match.agent2Id) {
+        await prisma.agent.update({
+          where: { id: match.agent2Id },
+          data: { draws: { increment: 1 } },
+        })
+      }
     }
 
-    // Emit timeout event
+    // Emit timeout event with verdict
     emitMatchEvent(matchId, 'match_timeout', {
       agent1: match.agent1 ? { agent_id: match.agent1.id, name: match.agent1.name } : null,
       agent2: match.agent2 ? { agent_id: match.agent2.id, name: match.agent2.name } : null,
       time_elapsed_seconds: match.timeLimitSeconds,
+      verdict: verdict,
     })
 
     // Clear frames
@@ -72,6 +119,8 @@ export async function GET(
     // Update match object for response
     match.status = 'complete'
     match.completedAt = now
+    match.winnerId = winnerId
+    match.oracleVerdict = JSON.stringify(verdict)
   }
 
   // Calculate time remaining if match is active
