@@ -4,7 +4,9 @@
 
 import { spawn } from 'child_process'
 import path from 'path'
+import { fileURLToPath } from 'url'
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const AGENT_SCRIPT = path.join(__dirname, 'ai-agent.ts')
 const API_BASE = process.env.API_BASE || 'http://localhost:3000'
 
